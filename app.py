@@ -9,57 +9,49 @@ from PIL import Image
 import io
 from groq import Groq
 
-# --- KONFIGURASI API ---
-GROQ_API_KEY = "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"
+# ==========================================
+# --- KONFIGURASI API AMAN (NO. 1) ---
+# ==========================================
+# Kita ambil API Key dari Secrets Streamlit, bukan ditulis manual di sini.
+if "GROQ_API_KEY" in st.secrets:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+else:
+    st.error("⚠️ API Key 'GROQ_API_KEY' tidak ditemukan! Harap masukkan di menu Settings > Secrets pada dashboard Streamlit.")
+    st.stop()
 
 # --- SETTING LAYAR MOBILE RESPONSIF ---
 st.set_page_config(
     page_title="Djamantara AI", 
     page_icon="🐱", 
-    layout="centered", # Tetap centered agar fokus di mode potret
-    initial_sidebar_state="collapsed" # Sidebar tertutup otomatis di hape biar gak sempit
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
-# --- CSS INJECTION (Biar Ganteng di Hape) ---
+# --- CSS INJECTION (Biar Ganteng & Responsif di Hape) ---
 st.markdown("""
     <style>
-    /* Mengatur padding utama agar tidak mepet di layar hape */
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 5rem;
         padding-left: 1rem;
         padding-right: 1rem;
     }
-    
-    /* Responsif Animasi Kucing */
     .cat-container img {
         max-width: 100px;
         height: auto;
     }
-    
-    /* Responsive Text Moto */
     .moto-text {
         font-size: 0.9rem !important;
         line-height: 1.4;
     }
-
-    /* Memperbaiki tampilan Chat Input di Mobile */
     .stChatInputContainer {
         padding-bottom: 20px;
     }
-
-    /* Sembunyikan footer Streamlit biar kelihatan profesional */
     footer {visibility: hidden;}
     #MainMenu {visibility: hidden;}
-    
-    /* Paksa mode potret agar elemen tetap di tengah */
     @media only screen and (max-width: 600px) {
-        h1 {
-            font-size: 1.8rem !important;
-        }
-        .moto-text {
-            font-size: 0.8rem !important;
-        }
+        h1 { font-size: 1.8rem !important; }
+        .moto-text { font-size: 0.8rem !important; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -227,9 +219,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                     {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
                                     {
                                         "type": "image_url",
-                                        "image_url": {
-                                            "url": f"data:image/jpeg;base64,{base64_image}",
-                                        },
+                                        "image_url": { "url": f"data:image/jpeg;base64,{base64_image}" },
                                     },
                                 ],
                             }
@@ -264,9 +254,9 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
             except Exception as e:
                 st.error(f"Duh Bos, sistem macet: {str(e)}")
 
+# Cleanup
 if os.path.exists("temp_voice.mp3"):
     try: 
         time.sleep(3)
         os.remove("temp_voice.mp3")
-    except:
-        pass
+    except: pass
