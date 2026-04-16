@@ -11,8 +11,7 @@ import io
 import pandas as pd
 import numpy as np
 import yfinance as yf
-from datetime import datetime, timedelta
-import plotly.graph_objects as go
+from sklearn.linear_model import LinearRegression
 
 # ==========================================
 # --- KONFIGURASI API ---
@@ -28,29 +27,24 @@ except Exception as e:
     st.error(f"Groq error: {e}")
 
 # Page config
-st.set_page_config(page_title="Djamantara AI", page_icon="🐱", layout="wide")
+st.set_page_config(page_title="Djamantara AI", page_icon="🐱", layout="centered")
 
 # ==========================================
-# 🎨 CSS - LAYOUT RAPI
+# 🎨 CSS
 # ==========================================
 st.markdown("""
     <style>
     .main .block-container {
         padding-top: 1rem;
         padding-bottom: 2rem;
-        max-width: 1200px;
+    }
+    .nav-button {
+        width: 100%;
+        margin: 5px 0;
     }
     .stChatMessage {
         margin: 10px 0;
     }
-    .trading-box {
-        background: #1e3a5f;
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
-    }
-    .price-up { color: #00ff88; font-size: 1.5rem; font-weight: bold; }
-    .price-down { color: #ff4444; font-size: 1.5rem; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -105,20 +99,16 @@ def get_stock_data(symbol, period="1mo"):
         return None
 
 def analyze_stock(df):
-    # Simple Moving Average
     df['SMA20'] = df['Close'].rolling(window=20).mean()
     df['SMA50'] = df['Close'].rolling(window=50).mean()
     
-    # RSI
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
     
-    # Simple prediction - linear trend
     df['Days'] = range(len(df))
-    from sklearn.linear_model import LinearRegression
     model = LinearRegression()
     model.fit(df[['Days']], df['Close'])
     
@@ -134,44 +124,6 @@ def analyze_stock(df):
     
     return df, predictions, trend, change_pct
 
-def create_chart(df, predictions, symbol):
-    fig = go.Figure()
-    
-    # Candlestick
-    fig.add_trace(go.Candlestick(
-        x=df.index,
-        open=df['Open'],
-        high=df['High'],
-        low=df['Low'],
-        close=df['Close'],
-        name='Price',
-        increasing_line_color='#00ff88',
-        decreasing_line_color='#ff4444'
-    ))
-    
-    # SMA
-    fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name='SMA 20', line=dict(color='blue')))
-    
-    # Prediction line
-    future_dates = pd.date_range(start=df.index[-1], periods=8)[1:]
-    fig.add_trace(go.Scatter(
-        x=future_dates, 
-        y=predictions, 
-        name='Prediction (7 days)', 
-        line=dict(color='orange', dash='dash')
-    ))
-    
-    fig.update_layout(
-        title=f'{symbol} - Price & Prediction',
-        yaxis_title='Price',
-        xaxis_title='Date',
-        height=600,
-        template='plotly_dark',
-        showlegend=True
-    )
-    
-    return fig
-
 # ==========================================
 # FUNGSI SUARA
 # ==========================================
@@ -184,11 +136,6 @@ async def generate_voice(text):
     except:
         return False
 
-def play_audio():
-    if os.path.exists("temp_voice.mp3"):
-        with open("temp_voice.mp3", "rb") as f:
-            st.audio(f.read(), format="audio/mpeg")
-
 # ==========================================
 # SESSION STATE
 # ==========================================
@@ -196,25 +143,34 @@ if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
 if "page" not in st.session_state:
     st.session_state.page = "chat"
+if "uploaded_img" not in st.session_state:
+    st.session_state.uploaded_img = None
 
 # ==========================================
 # NAVIGATION
 # ==========================================
-col1, col2, col3, col4 = st.columns(4)
+st.markdown("""
+    <style>
+    .stButton > button {
+        width: 100%;
+        margin: 5px 0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+col1, col2 = st.columns(2)
 with col1:
-    if st.button("💬 Chat", use_container_width=True):
+    if st.button("💬 Chat", key="chat_btn"):
         st.session_state.page = "chat"
         st.rerun()
-with col2:
-    if st.button("📈 Trading", use_container_width=True):
+    if st.button("📈 Trading", key="trade_btn"):
         st.session_state.page = "trading"
         st.rerun()
-with col3:
-    if st.button("📸 Foto", use_container_width=True):
+with col2:
+    if st.button("📸 Foto", key="foto_btn"):
         st.session_state.page = "foto"
         st.rerun()
-with col4:
-    if st.button("🗑️ Clear", use_container_width=True):
+    if st.button("🗑️ Clear", key="clear_btn"):
         clear_db()
         st.session_state.messages = []
         st.rerun()
@@ -227,12 +183,10 @@ st.markdown("---")
 if st.session_state.page == "chat":
     st.title("💬 Chat dengan Djamantara")
     
-    # Display messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
     
-    # Chat input
     if prompt := st.chat_input("Ketik pesan atau tanya saham/crypto..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         save_chat("user", prompt)
@@ -243,12 +197,10 @@ if st.session_state.page == "chat":
         with st.chat_message("assistant"):
             with st.spinner("Djamantara berpikir..."):
                 try:
-                    # Check if trading related
                     trading_words = ['saham', 'bitcoin', 'btc', 'crypto', 'harga', 'trading', 'stock']
                     if any(word in prompt.lower() for word in trading_words):
-                        response = "💡 Untuk analisa trading lengkap, klik tombol **📈 Trading** di atas. Masukkan symbol saham/crypto yang mau dianalisa!"
+                        response = "💡 Untuk analisa trading lengkap, klik tombol **📈 Trading** di atas!"
                     else:
-                        # AI Response
                         completion = client.chat.completions.create(
                             messages=[
                                 {"role": "system", "content": "Kamu Djamantara, asisten AI yang santai dan kocak. Panggil user 'Bos'."},
@@ -260,10 +212,11 @@ if st.session_state.page == "chat":
                     
                     st.markdown(response)
                     
-                    # Generate & play voice
+                    # Voice
                     asyncio.run(generate_voice(response))
-                    time.sleep(0.5)
-                    play_audio()
+                    if os.path.exists("temp_voice.mp3"):
+                        with open("temp_voice.mp3", "rb") as f:
+                            st.audio(f.read(), format="audio/mpeg")
                     
                     st.session_state.messages.append({"role": "assistant", "content": response})
                     save_chat("assistant", response)
@@ -278,91 +231,47 @@ elif st.session_state.page == "trading":
     st.title("📈 Smart Trading Analysis")
     st.markdown("Analisis teknikal & prediksi harga saham/crypto")
     
-    # Input
     col1, col2 = st.columns(2)
     with col1:
         symbol = st.text_input("Symbol", "BTC-USD").upper()
-        st.markdown("Contoh: BTC-USD, ETH-USD, BBRI.JK, AAPL")
     with col2:
         period = st.selectbox("Periode", ["1wk", "2wk", "1mo", "3mo", "6mo", "1y"])
     
-    if st.button("🔍 Analisa Sekarang", type="primary"):
+    if st.button("🔍 Analisa Sekarang", type="primary", use_container_width=True):
         with st.spinner(f"Mengambil data {symbol}..."):
             df = get_stock_data(symbol, period)
         
         if df is not None and not df.empty:
-            # Analysis
             df, predictions, trend, change_pct = analyze_stock(df)
             
-            # Display metrics
             current_price = df['Close'].iloc[-1]
             prev_price = df['Close'].iloc[-2]
             daily_change = ((current_price - prev_price) / prev_price) * 100
             
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Harga Sekarang", f"${current_price:.2f}", f"{daily_change:.2f}%")
             with col2:
                 st.metric("Prediksi 7 Hari", f"${predictions[-1]:.2f}", f"{change_pct:.2f}%")
             with col3:
                 st.metric("Trend", trend)
-            with col4:
-                rsi = df['RSI'].iloc[-1]
-                st.metric("RSI", f"{rsi:.1f}")
             
-            # Chart
-            st.markdown("### 📊 Chart & Prediksi")
-            fig = create_chart(df, predictions, symbol)
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Trading signals
-            st.markdown("### 🎯 Trading Signals")
-            
+            st.markdown("### 📊 Indikator")
             rsi = df['RSI'].iloc[-1]
-            price_vs_sma = current_price > df['SMA20'].iloc[-1]
+            st.write(f"**RSI:** {rsi:.1f} - {'Oversold (Buy)' if rsi < 30 else 'Overbought (Sell)' if rsi > 70 else 'Neutral'}")
+            st.write(f"**Price vs SMA20:** {'Above (Bullish)' if current_price > df['SMA20'].iloc[-1] else 'Below (Bearish)'}")
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("**Indikator:**")
-                st.write(f"• RSI: {rsi:.1f} - {'Oversold (Buy)' if rsi < 30 else 'Overbought (Sell)' if rsi > 70 else 'Neutral'}")
-                st.write(f"• Price vs SMA20: {'Above (Bullish)' if price_vs_sma else 'Below (Bearish)'}")
-                st.write(f"• Trend 7 Hari: {trend}")
-            
-            with col2:
-                st.markdown("**Rekomendasi:**")
-                if rsi < 30 and price_vs_sma:
-                    st.success("✅ STRONG BUY")
-                elif rsi > 70 and not price_vs_sma:
-                    st.error("❌ STRONG SELL")
-                elif change_pct > 5:
-                    st.success("✅ BUY - Uptrend kuat")
-                elif change_pct < -5:
-                    st.error("❌ SELL - Downtrend kuat")
-                else:
-                    st.warning("⚠️ HOLD - Wait for better signal")
-            
-            # AI Insight
-            st.markdown("### 🤖 AI Insight")
-            try:
-                insight_prompt = f"""
-                Analisis trading {symbol}:
-                - Harga: ${current_price:.2f}
-                - Trend: {trend} ({change_pct:.2f}%)
-                - RSI: {rsi:.1f}
-                - vs SMA20: {'Above' if price_vs_sma else 'Below'}
-                
-                Berikan insight trading singkat & actionable dalam bahasa Indonesia.
-                """
-                completion = client.chat.completions.create(
-                    messages=[
-                        {"role": "system", "content": "Kamu ahli trading. Berikan insight profesional tapi singkat."},
-                        {"role": "user", "content": insight_prompt}
-                    ],
-                    model="llama-3.3-70b-versatile"
-                )
-                st.markdown(completion.choices[0].message.content)
-            except:
-                st.markdown("AI insight tidak tersedia")
+            st.markdown("### 🎯 Rekomendasi")
+            if rsi < 30 and current_price > df['SMA20'].iloc[-1]:
+                st.success("✅ STRONG BUY")
+            elif rsi > 70 and current_price < df['SMA20'].iloc[-1]:
+                st.error("❌ STRONG SELL")
+            elif change_pct > 5:
+                st.success("✅ BUY - Uptrend kuat")
+            elif change_pct < -5:
+                st.error("❌ SELL - Downtrend kuat")
+            else:
+                st.warning("⚠️ HOLD")
         else:
             st.error("❌ Symbol tidak ditemukan!")
 
@@ -374,31 +283,39 @@ elif st.session_state.page == "foto":
     
     uploaded_file = st.file_uploader("Pilih gambar", type=["jpg", "jpeg", "png"])
     
-    if uploaded_file:
-        # Compress
-        img = Image.open(uploaded_file)
-        if img.size[0] > 1024:
-            ratio = 1024 / img.size[0]
-            new_size = (1024, int(img.size[1] * ratio))
-            img = img.resize(new_size)
+    if uploaded_file is not None:
+        # Simpan ke session state
+        st.session_state.uploaded_img = uploaded_file
         
-        st.image(img, caption="Foto yang diupload", use_container_width=True)
+        # Tampilkan preview
+        st.markdown("### Preview Foto:")
+        st.image(uploaded_file, caption="Foto yang diupload", use_container_width=True)
         
-        if st.button(" Analisa dengan AI"):
+        # Tombol analisa
+        st.markdown("---")
+        if st.button("🔍 Analisa dengan AI", type="primary", use_container_width=True):
             with st.spinner("Mengirim ke AI..."):
                 try:
+                    # Compress & convert
+                    img = Image.open(uploaded_file)
+                    if img.size[0] > 1024:
+                        ratio = 1024 / img.size[0]
+                        new_size = (1024, int(img.size[1] * ratio))
+                        img = img.resize(new_size)
+                    
                     # Convert to base64
                     buffered = io.BytesIO()
                     img.save(buffered, format="JPEG")
                     img_base64 = base64.b64encode(buffered.getvalue()).decode()
                     
+                    # Send to AI
                     response = client.chat.completions.create(
                         messages=[
                             {
                                 "role": "user",
                                 "content": [
                                     {"type": "text", "text": "Analisa gambar ini secara detail dalam bahasa Indonesia"},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"}}
+                                    {"type": "image_url", "image_url": {"url": f"image/jpeg;base64,{img_base64}"}}
                                 ]
                             }
                         ],
@@ -410,11 +327,14 @@ elif st.session_state.page == "foto":
                     
                     # Voice
                     asyncio.run(generate_voice(response.choices[0].message.content))
-                    time.sleep(0.5)
-                    play_audio()
+                    if os.path.exists("temp_voice.mp3"):
+                        with open("temp_voice.mp3", "rb") as f:
+                            st.audio(f.read(), format="audio/mpeg")
                     
                 except Exception as e:
                     st.error(f"Error: {e}")
+    else:
+        st.info("📤 Silakan upload foto untuk dianalisa")
 
 # Cleanup
 if os.path.exists("temp_voice.mp3"):
