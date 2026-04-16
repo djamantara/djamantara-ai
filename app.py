@@ -172,11 +172,12 @@ def autoplay_audio(file_path):
 # ==========================================
 gif_data = get_local_gif("kucing.gif")
 
-if gif_
+# ✅ PERBAIKAN DI SINI: if gif_data:
+if gif_data:
     st.markdown(
         f"""
         <div style="text-align: center; margin-top: -20px;" class="cat-container">
-            <img src="data:image/gif;base64,{gif_data}" style="z-index: 1;">
+            <img src="image/gif;base64,{gif_data}" style="z-index: 1;">
             <h1 style="margin: 0; padding: 0;">🤖 Djamantara AI</h1>
             <p class="moto-text" style="color: gray; font-style: italic;">
                 "Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."
