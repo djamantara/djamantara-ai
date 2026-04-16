@@ -80,6 +80,20 @@ st.markdown("""
         height: auto;
     }
     
+    /* Delete Button Styling */
+    .delete-btn {
+        background: #ff4444;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    .delete-btn:hover {
+        background: #cc0000;
+    }
+    
     /* Chat Input Container */
     .stChatInputContainer {
         padding-bottom: 1rem !important;
@@ -135,6 +149,16 @@ def load_chat():
         conn.close()
         return [{"role": r, "content": c} for r, c in history]
     except: return []
+
+def clear_chat_db():
+    try:
+        conn = sqlite3.connect('djamantara_memory.db')
+        conn.cursor().execute("DELETE FROM chat_history")
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
 
 init_db()
 
@@ -197,11 +221,11 @@ if "current_image" not in st.session_state:
 # --- TAMPILKAN GIF HEADER ---
 gif_data = get_local_gif("kucing.gif")
 
-if gif_
+if gif_data:
     st.markdown(
         f"""
         <div style="text-align: center; margin-top: -20px;" class="cat-container">
-            <img src="image/gif;base64,{gif_data}" style="z-index: 1;">
+            <img src="data:image/gif;base64,{gif_data}" style="z-index: 1;">
             <h1 style="margin: 0; padding: 0;">🤖 Djamantara AI</h1>
             <p class="moto-text" style="color: gray; font-style: italic;">
                 "Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."
@@ -213,17 +237,20 @@ if gif_
 else:
     st.markdown("<h1 style='text-align: center;'>🤖 Djamantara AI</h1>", unsafe_allow_html=True)
 
-# --- SIDEBAR (Pengaturan) ---
-with st.sidebar:
-    st.title("⚙️ Pengaturan")
-    if st.button("🗑️ Hapus Semua Ingatan & Foto", use_container_width=True):
-        conn = sqlite3.connect('djamantara_memory.db')
-        conn.cursor().execute("DELETE FROM chat_history")
-        conn.commit()
-        conn.close()
-        st.session_state.messages = []
-        st.session_state.current_image = None
-        st.rerun()
+# --- TOMBOL HAPUS CHAT & UPLOAD FOTO ---
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.markdown("### 📸 Upload Foto (Opsional)")
+with col2:
+    if st.button("🗑️ Hapus Chat", use_container_width=True, help="Hapus semua riwayat chat"):
+        if clear_chat_db():
+            st.session_state.messages = []
+            st.rerun()
+
+# --- UPLOAD FOTO ---
+uploaded_file = st.file_uploader("", type=["jpg", "jpeg", "png"], key="main_uploader", label_visibility="collapsed")
+if uploaded_file:
+    st.session_state.current_image = uploaded_file
 
 # --- TAMPILKAN FOTO JIKA ADA (PREVIEW PERMANEN) ---
 if st.session_state.current_image is not None:
@@ -232,7 +259,7 @@ if st.session_state.current_image is not None:
     with col1:
         st.image(st.session_state.current_image, caption="📸 Foto yang akan dianalisa", use_container_width=True)
     with col2:
-        if st.button("❌"):
+        if st.button("❌ Hapus Foto", use_container_width=True):
             st.session_state.current_image = None
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
@@ -266,7 +293,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                 "role": "user",
                                 "content": [
                                     {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
-                                    {"type": "image_url", "image_url": {"url": f"image/jpeg;base64,{base64_image}"}}
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                                 ]
                             }
                         ],
