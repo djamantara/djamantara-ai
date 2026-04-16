@@ -28,10 +28,11 @@ st.set_page_config(
 )
 
 # ==========================================
-# 🎨 CSS INJECTION
+#  CSS INJECTION - HIDE FOOTER & FORK BUTTON
 # ==========================================
 st.markdown("""
     <style>
+    /* === HIDE STREAMLIT DEFAULT ELEMENTS === */
     #MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"] {
         visibility: hidden !important; 
         display: none !important;
@@ -41,6 +42,7 @@ st.markdown("""
         display: none !important;
     }
     
+    /* === MOBILE RESPONSIVE === */
     .main .block-container {
         padding-top: 1rem !important;
         padding-bottom: 3rem !important;
@@ -77,7 +79,7 @@ st.markdown("""
 try:
     client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
-    st.error(f"⚠️ Waduh Bos, Groq-nya bermasalah: {e}")
+    st.error(f"️ Waduh Bos, Groq-nya bermasalah: {e}")
 
 # ==========================================
 # --- 1. SISTEM INGATAN (DATABASE) ---
@@ -155,14 +157,6 @@ async def generate_voice(text):
     communicate = edge_tts.Communicate(clean_text, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
     await communicate.save("temp_voice.mp3")
 
-def autoplay_audio(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            data = f.read()
-            b64 = base64.b64encode(data).decode()
-            md = f'<audio autoplay="true"><source src="audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
-            st.markdown(md, unsafe_allow_html=True)
-
 # ==========================================
 # --- 3. TAMPILAN UTAMA ---
 # ==========================================
@@ -195,6 +189,7 @@ with st.sidebar:
 gif_data = get_local_gif("kucing.gif")
 
 if gif_data:
+    # FIX: Menggunakan image/gif;base64 yang benar
     st.markdown(
         f"""
         <div style="text-align: center; margin-top: -20px;" class="cat-container">
@@ -230,7 +225,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                # PERBAIKAN: Ambil gambar dari session state
+                # FIX: Ambil gambar dari session state agar bot bisa melihat
                 image_to_use = st.session_state.get("current_image")
                 
                 if image_to_use:
@@ -245,7 +240,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                 ]
                             }
                         ],
-                        model="meta-llama/llama-4-scout-17b-16e-instruct",
+                        model="meta-llama/llama-3.2-11b-vision-preview", # Model Vision
                     )
                     full_response = response.choices[0].message.content
                 else:
@@ -267,8 +262,13 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                     time.sleep(0.005)
                 placeholder.markdown(full_response)
 
+                # Generate Suara
                 run_async_safe(generate_voice, full_response)
-                autoplay_audio("temp_voice.mp3")
+                
+                # FIX AUDIO: Menggunakan st.audio bawaan agar suara pasti keluar
+                if os.path.exists("temp_voice.mp3"):
+                    st.audio("temp_voice.mp3", format="audio/mpeg")
+
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
                 save_chat("assistant", full_response)
                 
