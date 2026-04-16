@@ -27,7 +27,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# 🎨 CSS INJECTION
+# 🎨 CSS INJECTION - PREMIUM UI
 # ==========================================
 st.markdown("""
     <style>
@@ -44,7 +44,7 @@ st.markdown("""
     /* Container adjustments */
     .main .block-container {
         padding-top: 1rem !important;
-        padding-bottom: 3rem !important;
+        padding-bottom: 1rem !important;
         padding-left: 0.5rem !important;
         padding-right: 0.5rem !important;
         max-width: 100% !important;
@@ -62,16 +62,28 @@ st.markdown("""
         line-height: 1.4 !important;
         text-align: center !important;
         margin-top: 5px !important;
+        margin-bottom: 15px !important;
     }
     
-    /* Upload Box Styling */
-    .upload-box {
-        background: #161b22;
-        padding: 12px;
-        border-radius: 12px;
-        margin-bottom: 15px;
-        text-align: center;
-        border: 1px dashed #444;
+    /* Image Preview Box */
+    .image-preview-box {
+        background: linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%);
+        padding: 15px;
+        border-radius: 15px;
+        margin: 10px 0;
+        border: 2px solid #00d9ff;
+        box-shadow: 0 4px 15px rgba(0, 217, 255, 0.3);
+    }
+    .image-preview-box img {
+        border-radius: 10px;
+        max-width: 100%;
+        height: auto;
+    }
+    
+    /* Chat Input Container */
+    .stChatInputContainer {
+        padding-bottom: 1rem !important;
+        padding-top: 0.5rem !important;
     }
     
     /* Mobile Text */
@@ -171,14 +183,21 @@ async def generate_voice(text):
     await communicate.save("temp_voice.mp3")
 
 # ==========================================
-# --- 3. TAMPILAN UTAMA ---
+# --- 3. INISIALISASI SESSION STATE ---
+# ==========================================
+if "messages" not in st.session_state:
+    st.session_state.messages = load_chat()
+if "current_image" not in st.session_state:
+    st.session_state.current_image = None
+
+# ==========================================
+# --- 4. TAMPILAN UTAMA ---
 # ==========================================
 
-# --- TAMPILKAN GIF HEADER (FIXED TOTAL) ---
+# --- TAMPILKAN GIF HEADER ---
 gif_data = get_local_gif("kucing.gif")
 
-# PERHATIAN: Baris di bawah ini HARUS 'if gif_data:'
-if gif_data:
+if gif_
     st.markdown(
         f"""
         <div style="text-align: center; margin-top: -20px;" class="cat-container">
@@ -194,41 +213,37 @@ if gif_data:
 else:
     st.markdown("<h1 style='text-align: center;'>🤖 Djamantara AI</h1>", unsafe_allow_html=True)
 
-# --- AREA UPLOAD FOTO (Di tengah layar) ---
-st.markdown('<div class="upload-box">', unsafe_allow_html=True)
-uploaded_file = st.file_uploader("📸 Upload Foto (Opsional)", type=["jpg", "jpeg", "png"], key="main_uploader")
-if uploaded_file:
-    st.session_state.current_image = uploaded_file
-    st.image(uploaded_file, caption="Foto Siap Dianalisa!", use_container_width=True)
-    if st.button("🗑️ Hapus Foto"):
-        if "current_image" in st.session_state:
-            del st.session_state.current_image
-        st.rerun()
-st.markdown('</div>', unsafe_allow_html=True)
-
 # --- SIDEBAR (Pengaturan) ---
 with st.sidebar:
     st.title("⚙️ Pengaturan")
-    if st.button("🗑️ Hapus Semua Ingatan", use_container_width=True):
+    if st.button("🗑️ Hapus Semua Ingatan & Foto", use_container_width=True):
         conn = sqlite3.connect('djamantara_memory.db')
         conn.cursor().execute("DELETE FROM chat_history")
         conn.commit()
         conn.close()
         st.session_state.messages = []
-        if "current_image" in st.session_state:
-            del st.session_state.current_image
+        st.session_state.current_image = None
         st.rerun()
 
-# --- CHAT HISTORY ---
-if "messages" not in st.session_state:
-    st.session_state.messages = load_chat()
+# --- TAMPILKAN FOTO JIKA ADA (PREVIEW PERMANEN) ---
+if st.session_state.current_image is not None:
+    st.markdown('<div class="image-preview-box">', unsafe_allow_html=True)
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.image(st.session_state.current_image, caption="📸 Foto yang akan dianalisa", use_container_width=True)
+    with col2:
+        if st.button("❌"):
+            st.session_state.current_image = None
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
+# --- CHAT HISTORY ---
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
 # ==========================================
-# --- 4. LOGIKA PERCAKAPAN ---
+# --- 5. LOGIKA PERCAKAPAN ---
 # ==========================================
 if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -240,8 +255,8 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                # Ambil gambar dari state
-                image_to_use = st.session_state.get("current_image")
+                # Ambil gambar dari session state (TIDAK AKAN HILANG)
+                image_to_use = st.session_state.current_image
                 
                 if image_to_use:
                     base64_image = encode_image(image_to_use)
@@ -269,6 +284,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                     )
                     full_response = chat_completion.choices[0].message.content
                 
+                # Tampilkan respons dengan efek mengetik
                 placeholder = st.empty()
                 displayed_text = ""
                 for char in full_response:
