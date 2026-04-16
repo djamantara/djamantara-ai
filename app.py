@@ -10,14 +10,16 @@ import io
 from groq import Groq
 
 # ==========================================
-# --- KONFIGURASI API AMAN (NO. 1) ---
+# --- KONFIGURASI API AMAN ---
 # ==========================================
-# Kita ambil API Key dari Secrets Streamlit, bukan ditulis manual di sini.
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
-    st.error("⚠️ API Key 'GROQ_API_KEY' tidak ditemukan! Harap masukkan di menu Settings > Secrets pada dashboard Streamlit.")
-    st.stop()
+    import os
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+    if not GROQ_API_KEY:
+        st.error("⚠️ API Key tidak ditemukan!")
+        st.stop()
 
 # --- SETTING LAYAR MOBILE RESPONSIF ---
 st.set_page_config(
@@ -27,32 +29,51 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS INJECTION (Biar Ganteng & Responsif di Hape) ---
+# ==========================================
+# 🎨 CSS INJECTION - HIDE FOOTER & FORK BUTTON
+# ==========================================
 st.markdown("""
     <style>
+    /* === HIDE STREAMLIT DEFAULT ELEMENTS === */
+    #MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"] {
+        visibility: hidden !important; 
+        display: none !important;
+    }
+    .viewerBadge, .github-link, [data-testid="stDecoration"] {
+        visibility: hidden !important; 
+        display: none !important;
+    }
+    
+    /* === MOBILE RESPONSIVE === */
     .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 5rem;
-        padding-left: 1rem;
-        padding-right: 1rem;
+        padding-top: 1rem !important;
+        padding-bottom: 3rem !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+        max-width: 100% !important;
     }
     .cat-container img {
-        max-width: 100px;
-        height: auto;
+        max-width: 100px !important;
+        height: auto !important;
+        display: block !important;
+        margin: 0 auto !important;
     }
     .moto-text {
-        font-size: 0.9rem !important;
-        line-height: 1.4;
+        font-size: 0.85rem !important;
+        line-height: 1.4 !important;
+        text-align: center !important;
+        margin-top: 5px !important;
     }
-    .stChatInputContainer {
-        padding-bottom: 20px;
-    }
-    footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
+    .stChatInputContainer { padding-bottom: 10px !important; }
+    
     @media only screen and (max-width: 600px) {
-        h1 { font-size: 1.8rem !important; }
-        .moto-text { font-size: 0.8rem !important; }
+        h1 { font-size: 1.5rem !important; }
+        .moto-text { font-size: 0.75rem !important; }
+        .stChatMessage { padding: 0.5rem !important; }
     }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0e1117; }
+    ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -101,8 +122,7 @@ def get_local_gif(file_path):
     if os.path.exists(file_path):
         with open(file_path, "rb") as file_:
             contents = file_.read()
-            data_url = base64.b64encode(contents).decode("utf-8")
-        return data_url
+            return base64.b64encode(contents).decode("utf-8")
     return None
 
 def encode_image(uploaded_file):
@@ -144,7 +164,7 @@ def autoplay_audio(file_path):
         with open(file_path, "rb") as f:
             data = f.read()
             b64 = base64.b64encode(data).decode()
-            md = f'<audio autoplay="true"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
+            md = f'<audio autoplay="true"><source src="audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
             st.markdown(md, unsafe_allow_html=True)
 
 # ==========================================
@@ -152,10 +172,10 @@ def autoplay_audio(file_path):
 # ==========================================
 gif_data = get_local_gif("kucing.gif")
 
-if gif_data:
+if gif_
     st.markdown(
         f"""
-        <div style="text-align: center; margin-top: -30px;" class="cat-container">
+        <div style="text-align: center; margin-top: -20px;" class="cat-container">
             <img src="data:image/gif;base64,{gif_data}" style="z-index: 1;">
             <h1 style="margin: 0; padding: 0;">🤖 Djamantara AI</h1>
             <p class="moto-text" style="color: gray; font-style: italic;">
@@ -165,6 +185,8 @@ if gif_data:
         """, 
         unsafe_allow_html=True
     )
+else:
+    st.markdown("<h1 style='text-align: center;'>🤖 Djamantara AI</h1>", unsafe_allow_html=True)
 
 with st.sidebar:
     st.title("👁️ Mata Kocheng")
@@ -177,7 +199,7 @@ with st.sidebar:
         uploaded_file = st.session_state.current_image
     
     st.divider()
-    if st.button("Hapus Ingatan"):
+    if st.button("🗑️ Hapus Ingatan"):
         conn = sqlite3.connect('djamantara_memory.db')
         conn.cursor().execute("DELETE FROM chat_history")
         conn.commit()
@@ -217,11 +239,8 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                 "role": "user",
                                 "content": [
                                     {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
-                                    {
-                                        "type": "image_url",
-                                        "image_url": { "url": f"data:image/jpeg;base64,{base64_image}" },
-                                    },
-                                ],
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                                ]
                             }
                         ],
                         model="meta-llama/llama-4-scout-17b-16e-instruct",
