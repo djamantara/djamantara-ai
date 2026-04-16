@@ -31,6 +31,7 @@ st.set_page_config(
 # ==========================================
 st.markdown("""
     <style>
+    /* Hide default elements */
     #MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"] {
         visibility: hidden !important; 
         display: none !important;
@@ -39,6 +40,8 @@ st.markdown("""
         visibility: hidden !important; 
         display: none !important;
     }
+    
+    /* Container adjustments */
     .main .block-container {
         padding-top: 1rem !important;
         padding-bottom: 3rem !important;
@@ -46,6 +49,8 @@ st.markdown("""
         padding-right: 0.5rem !important;
         max-width: 100% !important;
     }
+    
+    /* GIF Styling */
     .cat-container img {
         max-width: 100px !important;
         height: auto !important;
@@ -58,6 +63,8 @@ st.markdown("""
         text-align: center !important;
         margin-top: 5px !important;
     }
+    
+    /* Upload Box Styling */
     .upload-box {
         background: #161b22;
         padding: 12px;
@@ -66,11 +73,15 @@ st.markdown("""
         text-align: center;
         border: 1px dashed #444;
     }
+    
+    /* Mobile Text */
     @media only screen and (max-width: 600px) {
         h1 { font-size: 1.5rem !important; }
         .moto-text { font-size: 0.75rem !important; }
         .stChatMessage { padding: 0.5rem !important; }
     }
+    
+    /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #0e1117; }
     ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
@@ -163,13 +174,14 @@ async def generate_voice(text):
 # --- 3. TAMPILAN UTAMA ---
 # ==========================================
 
-# --- TAMPILKAN GIF HEADER ---
+# --- TAMPILKAN GIF HEADER (FIXED) ---
 gif_data = get_local_gif("kucing.gif")
+
 if gif_
     st.markdown(
         f"""
         <div style="text-align: center; margin-top: -20px;" class="cat-container">
-            <img src="data:image/gif;base64,{gif_data}" style="z-index: 1;">
+            <img src="image/gif;base64,{gif_data}" style="z-index: 1;">
             <h1 style="margin: 0; padding: 0;">🤖 Djamantara AI</h1>
             <p class="moto-text" style="color: gray; font-style: italic;">
                 "Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."
@@ -181,14 +193,15 @@ if gif_
 else:
     st.markdown("<h1 style='text-align: center;'>🤖 Djamantara AI</h1>", unsafe_allow_html=True)
 
-# --- AREA UPLOAD FOTO (Di tengah layar agar mudah di HP) ---
+# --- AREA UPLOAD FOTO (Di tengah layar) ---
 st.markdown('<div class="upload-box">', unsafe_allow_html=True)
 uploaded_file = st.file_uploader("📸 Upload Foto (Opsional)", type=["jpg", "jpeg", "png"], key="main_uploader")
 if uploaded_file:
     st.session_state.current_image = uploaded_file
     st.image(uploaded_file, caption="Foto Siap Dianalisa!", use_container_width=True)
     if st.button("🗑️ Hapus Foto"):
-        del st.session_state.current_image
+        if "current_image" in st.session_state:
+            del st.session_state.current_image
         st.rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -237,11 +250,11 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                 "role": "user",
                                 "content": [
                                     {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                                    {"type": "image_url", "image_url": {"url": f"image/jpeg;base64,{base64_image}"}}
                                 ]
                             }
                         ],
-                        model="llama-3.2-11b-vision-preview", # Model khusus baca gambar
+                        model="llama-3.2-11b-vision-preview",
                     )
                     full_response = response.choices[0].message.content
                 else:
@@ -251,7 +264,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                             {"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Gunakan bahasa santai Indonesia-Madura."},
                             *context
                         ],
-                        model="llama-3.3-70b-versatile", # Model teks standar
+                        model="llama-3.3-70b-versatile",
                     )
                     full_response = chat_completion.choices[0].message.content
                 
