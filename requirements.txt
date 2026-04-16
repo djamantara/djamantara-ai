@@ -2,3 +2,8 @@ streamlit
 groq
 edge-tts
 Pillow
+pandas
+numpy
+yfinance
+plotly
+scikit-learn
