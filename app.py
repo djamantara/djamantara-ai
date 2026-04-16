@@ -5,7 +5,6 @@ import asyncio
 import base64
 import os
 import sqlite3
-import io
 from groq import Groq
 
 # ==========================================
@@ -28,11 +27,10 @@ st.set_page_config(
 )
 
 # ==========================================
-#  CSS INJECTION - HIDE FOOTER & FORK BUTTON
+# 🎨 CSS INJECTION
 # ==========================================
 st.markdown("""
     <style>
-    /* === HIDE STREAMLIT DEFAULT ELEMENTS === */
     #MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"] {
         visibility: hidden !important; 
         display: none !important;
@@ -41,8 +39,6 @@ st.markdown("""
         visibility: hidden !important; 
         display: none !important;
     }
-    
-    /* === MOBILE RESPONSIVE === */
     .main .block-container {
         padding-top: 1rem !important;
         padding-bottom: 3rem !important;
@@ -62,8 +58,14 @@ st.markdown("""
         text-align: center !important;
         margin-top: 5px !important;
     }
-    .stChatInputContainer { padding-bottom: 10px !important; }
-    
+    .upload-box {
+        background: #161b22;
+        padding: 12px;
+        border-radius: 12px;
+        margin-bottom: 15px;
+        text-align: center;
+        border: 1px dashed #444;
+    }
     @media only screen and (max-width: 600px) {
         h1 { font-size: 1.5rem !important; }
         .moto-text { font-size: 0.75rem !important; }
@@ -79,7 +81,7 @@ st.markdown("""
 try:
     client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
-    st.error(f"️ Waduh Bos, Groq-nya bermasalah: {e}")
+    st.error(f"⚠️ Waduh Bos, Groq-nya bermasalah: {e}")
 
 # ==========================================
 # --- 1. SISTEM INGATAN (DATABASE) ---
@@ -161,35 +163,9 @@ async def generate_voice(text):
 # --- 3. TAMPILAN UTAMA ---
 # ==========================================
 
-# --- LOGIC IMAGE UPLOAD (SIDEBAR) ---
-uploaded_file = None
-with st.sidebar:
-    st.title("👁️ Mata Kocheng")
-    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"])
-    
-    if uploaded_file:
-        st.session_state.current_image = uploaded_file
-        st.image(uploaded_file, caption="Foto Siap!", use_container_width=True)
-    elif "current_image" in st.session_state:
-        st.image(st.session_state.current_image, caption="Foto Siap!", use_container_width=True)
-        uploaded_file = st.session_state.current_image
-    
-    st.divider()
-    if st.button("🗑️ Hapus Ingatan"):
-        conn = sqlite3.connect('djamantara_memory.db')
-        conn.cursor().execute("DELETE FROM chat_history")
-        conn.commit()
-        conn.close()
-        st.session_state.messages = []
-        if "current_image" in st.session_state:
-            del st.session_state.current_image
-        st.rerun()
-
 # --- TAMPILKAN GIF HEADER ---
 gif_data = get_local_gif("kucing.gif")
-
-if gif_data:
-    # FIX: Menggunakan image/gif;base64 yang benar
+if gif_
     st.markdown(
         f"""
         <div style="text-align: center; margin-top: -20px;" class="cat-container">
@@ -205,6 +181,31 @@ if gif_data:
 else:
     st.markdown("<h1 style='text-align: center;'>🤖 Djamantara AI</h1>", unsafe_allow_html=True)
 
+# --- AREA UPLOAD FOTO (Di tengah layar agar mudah di HP) ---
+st.markdown('<div class="upload-box">', unsafe_allow_html=True)
+uploaded_file = st.file_uploader("📸 Upload Foto (Opsional)", type=["jpg", "jpeg", "png"], key="main_uploader")
+if uploaded_file:
+    st.session_state.current_image = uploaded_file
+    st.image(uploaded_file, caption="Foto Siap Dianalisa!", use_container_width=True)
+    if st.button("🗑️ Hapus Foto"):
+        del st.session_state.current_image
+        st.rerun()
+st.markdown('</div>', unsafe_allow_html=True)
+
+# --- SIDEBAR (Pengaturan) ---
+with st.sidebar:
+    st.title("⚙️ Pengaturan")
+    if st.button("🗑️ Hapus Semua Ingatan", use_container_width=True):
+        conn = sqlite3.connect('djamantara_memory.db')
+        conn.cursor().execute("DELETE FROM chat_history")
+        conn.commit()
+        conn.close()
+        st.session_state.messages = []
+        if "current_image" in st.session_state:
+            del st.session_state.current_image
+        st.rerun()
+
+# --- CHAT HISTORY ---
 if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
 
@@ -225,7 +226,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                # FIX: Ambil gambar dari session state agar bot bisa melihat
+                # Ambil gambar dari state
                 image_to_use = st.session_state.get("current_image")
                 
                 if image_to_use:
@@ -240,7 +241,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                 ]
                             }
                         ],
-                        model="meta-llama/llama-3.2-11b-vision-preview", # Model Vision
+                        model="llama-3.2-11b-vision-preview", # Model khusus baca gambar
                     )
                     full_response = response.choices[0].message.content
                 else:
@@ -250,7 +251,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                             {"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Gunakan bahasa santai Indonesia-Madura."},
                             *context
                         ],
-                        model="llama-3.3-70b-versatile",
+                        model="llama-3.3-70b-versatile", # Model teks standar
                     )
                     full_response = chat_completion.choices[0].message.content
                 
@@ -262,10 +263,8 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                     time.sleep(0.005)
                 placeholder.markdown(full_response)
 
-                # Generate Suara
+                # Generate Suara & Tampilkan Player
                 run_async_safe(generate_voice, full_response)
-                
-                # FIX AUDIO: Menggunakan st.audio bawaan agar suara pasti keluar
                 if os.path.exists("temp_voice.mp3"):
                     st.audio("temp_voice.mp3", format="audio/mpeg")
 
