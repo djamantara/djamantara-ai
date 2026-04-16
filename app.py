@@ -174,10 +174,11 @@ async def generate_voice(text):
 # --- 3. TAMPILAN UTAMA ---
 # ==========================================
 
-# --- TAMPILKAN GIF HEADER (FIXED) ---
+# --- TAMPILKAN GIF HEADER (FIXED TOTAL) ---
 gif_data = get_local_gif("kucing.gif")
 
-if gif_
+# PERHATIAN: Baris di bawah ini HARUS 'if gif_data:'
+if gif_data:
     st.markdown(
         f"""
         <div style="text-align: center; margin-top: -20px;" class="cat-container">
