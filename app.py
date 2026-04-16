@@ -5,7 +5,6 @@ import asyncio
 import base64
 import os
 import sqlite3
-from PIL import Image
 import io
 from groq import Groq
 
@@ -15,7 +14,6 @@ from groq import Groq
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
-    import os
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
     if not GROQ_API_KEY:
         st.error("⚠️ API Key tidak ditemukan!")
@@ -30,11 +28,10 @@ st.set_page_config(
 )
 
 # ==========================================
-# 🎨 CSS INJECTION - HIDE FOOTER & FORK BUTTON
+# 🎨 CSS INJECTION
 # ==========================================
 st.markdown("""
     <style>
-    /* === HIDE STREAMLIT DEFAULT ELEMENTS === */
     #MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"] {
         visibility: hidden !important; 
         display: none !important;
@@ -44,7 +41,6 @@ st.markdown("""
         display: none !important;
     }
     
-    /* === MOBILE RESPONSIVE === */
     .main .block-container {
         padding-top: 1rem !important;
         padding-bottom: 3rem !important;
@@ -170,28 +166,13 @@ def autoplay_audio(file_path):
 # ==========================================
 # --- 3. TAMPILAN UTAMA ---
 # ==========================================
-gif_data = get_local_gif("kucing.gif")
 
-# ✅ PERBAIKAN DI SINI: if gif_data:
-if gif_data:
-    st.markdown(
-        f"""
-        <div style="text-align: center; margin-top: -20px;" class="cat-container">
-            <img src="image/gif;base64,{gif_data}" style="z-index: 1;">
-            <h1 style="margin: 0; padding: 0;">🤖 Djamantara AI</h1>
-            <p class="moto-text" style="color: gray; font-style: italic;">
-                "Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."
-            </p>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
-else:
-    st.markdown("<h1 style='text-align: center;'>🤖 Djamantara AI</h1>", unsafe_allow_html=True)
-
+# --- LOGIC IMAGE UPLOAD (SIDEBAR) ---
+uploaded_file = None
 with st.sidebar:
     st.title("👁️ Mata Kocheng")
     uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"])
+    
     if uploaded_file:
         st.session_state.current_image = uploaded_file
         st.image(uploaded_file, caption="Foto Siap!", use_container_width=True)
@@ -209,6 +190,25 @@ with st.sidebar:
         if "current_image" in st.session_state:
             del st.session_state.current_image
         st.rerun()
+
+# --- TAMPILKAN GIF HEADER ---
+gif_data = get_local_gif("kucing.gif")
+
+if gif_data:
+    st.markdown(
+        f"""
+        <div style="text-align: center; margin-top: -20px;" class="cat-container">
+            <img src="data:image/gif;base64,{gif_data}" style="z-index: 1;">
+            <h1 style="margin: 0; padding: 0;">🤖 Djamantara AI</h1>
+            <p class="moto-text" style="color: gray; font-style: italic;">
+                "Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."
+            </p>
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+else:
+    st.markdown("<h1 style='text-align: center;'>🤖 Djamantara AI</h1>", unsafe_allow_html=True)
 
 if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
@@ -230,7 +230,8 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                image_to_use = uploaded_file if uploaded_file is not None else st.session_state.get("current_image")
+                # PERBAIKAN: Ambil gambar dari session state
+                image_to_use = st.session_state.get("current_image")
                 
                 if image_to_use:
                     base64_image = encode_image(image_to_use)
