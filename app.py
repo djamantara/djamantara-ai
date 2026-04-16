@@ -10,18 +10,18 @@ from PIL import Image
 import io
 
 # ==========================================
-# --- KONFIGURASI API AMAN ---
+# --- KONFIGURASI API ---
 # ==========================================
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
-    # Saran: Gunakan os.getenv agar lebih aman di lokal
+    # Menggunakan key dari env atau default yang Bos kasih
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
     if not GROQ_API_KEY:
-        st.error("⚠️ API Key tidak ditemukan!")
+        st.error("⚠️ API Key tidak ditemukan! Masukkan di Secrets Streamlit.")
         st.stop()
 
-# --- SETTING LAYAR MOBILE RESPONSIF ---
+# --- SETTING HALAMAN ---
 st.set_page_config(
     page_title="Djamantara AI", 
     page_icon="🐱", 
@@ -30,50 +30,60 @@ st.set_page_config(
 )
 
 # ==========================================
-# 🎨 CSS INJECTION - PREMIUM UI
+# 🎨 CSS CUSTOM - PREMIUM UI
 # ==========================================
 st.markdown("""
     <style>
-    /* Sembunyikan elemen bawaan Streamlit agar terlihat seperti App */
+    /* Sembunyikan Header & Footer Streamlit */
     #MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"] {
         visibility: hidden !important; 
         display: none !important;
     }
     
     .main .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
+        padding-top: 2rem !important;
+        padding-bottom: 5rem !important;
         max-width: 100% !important;
     }
     
-    .cat-container img {
-        max-width: 100px !important;
+    /* Styling Header */
+    .header-box {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .header-box img {
+        max-width: 120px;
         border-radius: 50%;
-        margin: 0 auto !important;
+        margin-bottom: 10px;
     }
     
     .moto-text {
         font-size: 0.85rem !important;
-        color: #888;
-        text-align: center;
+        color: #aaaaaa;
         font-style: italic;
+        line-height: 1.4;
+    }
+
+    /* Input Box Floating style */
+    .stChatInputContainer {
+        padding-bottom: 20px !important;
     }
     
-    .image-preview-box {
-        background: #121212;
+    .image-preview-card {
+        background: #1a1a1a;
         padding: 10px;
         border-radius: 15px;
-        border: 1px solid #00d9ff;
-        margin-bottom: 10px;
+        border: 2px solid #00d9ff;
+        margin-bottom: 15px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# Setup Groq Client
+# Inisialisasi Klien Groq
 client = Groq(api_key=GROQ_API_KEY)
 
 # ==========================================
-# --- 1. SISTEM INGATAN (DATABASE) ---
+# --- 1. DATABASE (MEMORI CHAT) ---
 # ==========================================
 def init_db():
     conn = sqlite3.connect('djamantara_memory.db', check_same_thread=False)
@@ -114,33 +124,30 @@ def clear_chat_db():
 init_db()
 
 # ==========================================
-# --- 2. FUNGSI PENDUKUNG (MEDIA) ---
+# --- 2. MEDIA HELPER ---
 # ==========================================
-def get_local_gif(file_path):
+def get_base64_file(file_path):
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
-            data = f.read()
-            return base64.b64encode(data).decode()
+            return base64.b64encode(f.read()).decode()
     return None
 
-def compress_image(uploaded_file):
+def process_image(uploaded_file):
     img = Image.open(uploaded_file)
     if img.mode != 'RGB':
         img = img.convert('RGB')
     
-    # Resize jika terlalu besar
-    max_size = 1024
-    if max(img.size) > max_size:
-        img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+    # Resize agar hemat kuota token & cepat
+    img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
     
     img_byte_arr = io.BytesIO()
-    img.save(img_byte_arr, format='JPEG', quality=80)
+    img.save(img_byte_arr, format='JPEG', quality=85)
     img_byte_arr.seek(0)
     return img_byte_arr
 
-async def generate_voice(text):
-    # Bersihkan teks dari simbol markdown agar suara lebih natural
-    clean_text = text.replace("*", "").replace("#", "").replace("`", "")
+async def text_to_speech(text):
+    # Bersihkan simbol biar suara AI-nya nggak bingung
+    clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
     communicate = edge_tts.Communicate(clean_text, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
     await communicate.save("temp_voice.mp3")
 
@@ -149,51 +156,53 @@ async def generate_voice(text):
 # ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
-if "compressed_image" not in st.session_state:
-    st.session_state.compressed_image = None
+if "temp_img" not in st.session_state:
+    st.session_state.temp_img = None
 
 # ==========================================
-# --- 4. TAMPILAN ---
+# --- 4. UI HEADER ---
 # ==========================================
+gif_b64 = get_base64_file("kucing.gif")
+st.markdown('<div class="header-box">', unsafe_allow_html=True)
+if gif_b64:
+    st.markdown(f'<img src="data:image/gif;base64,{gif_b64}">', unsafe_allow_html=True)
+st.markdown('<h1>🤖 Djamantara AI</h1>', unsafe_allow_html=True)
+st.markdown('<p class="moto-text">"Entar kon obâ\'. É tengnga jhâlân pas mu-nemmu. Lebbi bhagus nyaré élmo."</p>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
-# Header GIF
-gif_base64 = get_local_gif("kucing.gif")
-if gif_base64:
-    st.markdown(
-        f"""
-        <div class="cat-container" style="text-align: center;">
-            <img src="data:image/gif;base64,{gif_base64}">
-            <h1 style='margin-bottom:0;'>🤖 Djamantara AI</h1>
-            <p class="moto-text">"Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Lebbi bhagus nyaré élmo."</p>
-        </div>
-        """, unsafe_allow_html=True
-    )
-else:
-    st.markdown("<h1 style='text-align: center;'>🤖 Djamantara AI</h1>", unsafe_allow_html=True)
-
-# Toolbar Chat
-col1, col2 = st.columns([3, 1])
-with col1:
-    uploaded_file = st.file_uploader("Upload Foto", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
-with col2:
+# Tombol Aksi
+col_up, col_del = st.columns([4, 1])
+with col_del:
     if st.button("🗑️ Reset", use_container_width=True):
         if clear_chat_db():
             st.session_state.messages = []
-            st.session_state.compressed_image = None
+            st.session_state.temp_img = None
             st.rerun()
 
-# Logika Upload
-if uploaded_file:
-    st.session_state.compressed_image = compress_image(uploaded_file)
-    st.image(st.session_state.compressed_image, caption="📸 Foto siap dianalisa", width=200)
+with col_up:
+    uploaded_file = st.file_uploader("Upload foto", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
 
-# Tampilkan Chat
+# Preview Gambar
+if uploaded_file:
+    st.session_state.temp_img = process_image(uploaded_file)
+    with st.container():
+        st.markdown('<div class="image-preview-card">', unsafe_allow_html=True)
+        st.image(st.session_state.temp_img, caption="📸 Foto siap dianlisa Bos!", width=250)
+        if st.button("❌ Hapus Foto"):
+            st.session_state.temp_img = None
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# ==========================================
+# --- 5. LOGIKA CHAT ---
+# ==========================================
+# Tampilkan histori
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Input Chat
-if prompt := st.chat_input("Ngobrol apa kita, Bos?"):
+# Input User
+if prompt := st.chat_input("Tanya apa hari ini, Bos?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     save_chat("user", prompt)
     
@@ -201,41 +210,50 @@ if prompt := st.chat_input("Ngobrol apa kita, Bos?"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Djamantara lagi mikir..."):
+        with st.spinner("Si Kocheng lagi mikir..."):
             try:
-                if st.session_state.compressed_image:
-                    # Logic Vision
-                    b64_img = base64.b64encode(st.session_state.compressed_image.read()).decode()
+                # JIKA ADA GAMBAR
+                if st.session_state.temp_img:
+                    b64_data = base64.b64encode(st.session_state.temp_img.read()).decode()
                     response = client.chat.completions.create(
                         messages=[{
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": f"Kamu Djamantara. Jawab santai/kocak campur bahasa Madura. Analisa foto ini berdasarkan chat: {prompt}"},
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}
+                                {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, gaya bahasa Indonesia-Madura. Panggil 'Bos'. Analisa ini: {prompt}"},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_data}"}}
                             ]
                         }],
-                        model="llama-3.2-11b-vision-preview", # Model vision yang stabil
+                        model="llama-3.2-90b-vision-preview", # MODEL TERBARU
                     )
+                # JIKA CHAT BIASA
                 else:
-                    # Logic Chat Biasa
+                    context = st.session_state.messages[-6:] # Ambil 6 pesan terakhir buat konteks
                     response = client.chat.completions.create(
                         messages=[
-                            {"role": "system", "content": "Nama kamu Djamantara, asisten kucing keren. Panggil 'Bos'. Gunakan bahasa Indonesia-Madura santai."},
-                            *st.session_state.messages[-5:]
+                            {"role": "system", "content": "Kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Gunakan bahasa santai Indonesia-Madura."},
+                            *context
                         ],
                         model="llama-3.3-70b-versatile",
                     )
                 
-                full_res = response.choices[0].message.content
-                st.markdown(full_res)
+                full_response = response.choices[0].message.content
+                st.markdown(full_response)
                 
-                # Audio TTS
-                asyncio.run(generate_voice(full_res))
-                if os.path.exists("temp_voice.mp3"):
-                    st.audio("temp_voice.mp3")
-                
-                st.session_state.messages.append({"role": "assistant", "content": full_res})
-                save_chat("assistant", full_res)
+                # TTS (Suara)
+                try:
+                    asyncio.run(text_to_speech(full_response))
+                    if os.path.exists("temp_voice.mp3"):
+                        st.audio("temp_voice.mp3", format="audio/mpeg", autoplay=True)
+                except: pass
+
+                # Simpan ke memori
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+                save_chat("assistant", full_response)
 
             except Exception as e:
-                st.error(f"Waduh Bos, sistem error: {e}")
+                st.error(f"Duh Bos, sistem macet: {str(e)}")
+
+# Bersihkan file suara lama
+if os.path.exists("temp_voice.mp3"):
+    try: os.remove("temp_voice.mp3")
+    except: pass
