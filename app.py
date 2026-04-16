@@ -10,12 +10,13 @@ import io
 from groq import Groq
 
 # ==========================================
-# --- KONFIGURASI API AMAN ---
+# --- KONFIGURASI API AMAN (NO. 1) ---
 # ==========================================
+# Kita ambil API Key dari Secrets Streamlit, bukan ditulis manual di sini.
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
-    st.error("⚠️ API Key 'GROQ_API_KEY' tidak ditemukan!")
+    st.error("⚠️ API Key 'GROQ_API_KEY' tidak ditemukan! Harap masukkan di menu Settings > Secrets pada dashboard Streamlit.")
     st.stop()
 
 # --- SETTING LAYAR MOBILE RESPONSIF ---
@@ -26,21 +27,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS INJECTION (UNTUK HILANGKAN FORK & HEADER) ---
+# --- CSS INJECTION (Biar Ganteng & Responsif di Hape) ---
 st.markdown("""
     <style>
-    /* 1. Sembunyikan Header (Termasuk tombol Fork & GitHub) */
-    header {visibility: hidden;}
-    
-    /* 2. Sembunyikan Footer (Made with Streamlit) */
-    footer {visibility: hidden;}
-    
-    /* 3. Sembunyikan Menu Default Streamlit (Titik Tiga) */
-    #MainMenu {visibility: hidden;}
-
-    /* Styling Kontainer Utama */
     .main .block-container {
-        padding-top: 1rem;
+        padding-top: 2rem;
         padding-bottom: 5rem;
         padding-left: 1rem;
         padding-right: 1rem;
@@ -56,6 +47,8 @@ st.markdown("""
     .stChatInputContainer {
         padding-bottom: 20px;
     }
+    footer {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
     @media only screen and (max-width: 600px) {
         h1 { font-size: 1.8rem !important; }
         .moto-text { font-size: 0.8rem !important; }
@@ -162,8 +155,8 @@ gif_data = get_local_gif("kucing.gif")
 if gif_data:
     st.markdown(
         f"""
-        <div style="text-align: center; margin-top: -10px;" class="cat-container">
-            <img src="data:image/gif;base64,{gif_data}">
+        <div style="text-align: center; margin-top: -30px;" class="cat-container">
+            <img src="data:image/gif;base64,{gif_data}" style="z-index: 1;">
             <h1 style="margin: 0; padding: 0;">🤖 Djamantara AI</h1>
             <p class="moto-text" style="color: gray; font-style: italic;">
                 "Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."
@@ -231,7 +224,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                 ],
                             }
                         ],
-                        model="llama-3.2-11b-vision-preview", # Pastikan model vision ini tersedia di Groq kamu
+                        model="meta-llama/llama-4-scout-17b-16e-instruct",
                     )
                     full_response = response.choices[0].message.content
                 else:
