@@ -1,5 +1,8 @@
 streamlit
 groq
+edge-tts
 Pillow
-yfinance
 pandas
+numpy
+yfinance
+scikit-learn
