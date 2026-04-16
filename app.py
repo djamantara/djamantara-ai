@@ -26,7 +26,6 @@ try:
 except Exception as e:
     st.error(f"Groq error: {e}")
 
-# Page config
 st.set_page_config(page_title="Djamantara AI", page_icon="🐱", layout="centered")
 
 # ==========================================
@@ -34,14 +33,8 @@ st.set_page_config(page_title="Djamantara AI", page_icon="🐱", layout="centere
 # ==========================================
 st.markdown("""
     <style>
-    .main .block-container {
-        padding-top: 1rem;
-        padding-bottom: 2rem;
-    }
-    .stButton > button {
-        width: 100%;
-        margin: 5px 0;
-    }
+    .main .block-container { padding-top: 1rem; padding-bottom: 2rem; }
+    .stButton > button { width: 100%; margin: 5px 0; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -51,8 +44,7 @@ st.markdown("""
 def init_db():
     conn = sqlite3.connect('djamantara.db')
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS chat_history 
-                 (role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS chat_history (role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     conn.commit()
     conn.close()
 
@@ -86,7 +78,7 @@ def clear_db():
 init_db()
 
 # ==========================================
-# FUNGSI TRADING
+# FUNGSI TRADING (FIXED)
 # ==========================================
 def get_stock_data(symbol, period="1mo"):
     try:
@@ -96,6 +88,11 @@ def get_stock_data(symbol, period="1mo"):
         return None
 
 def analyze_stock(df):
+    df = df.copy()
+    df.dropna(inplace=True)
+    if len(df) < 2:
+        return df, np.array([]), "NO DATA", 0.0
+
     df['SMA20'] = df['Close'].rolling(window=20).mean()
     df['SMA50'] = df['Close'].rolling(window=50).mean()
     
@@ -105,7 +102,7 @@ def analyze_stock(df):
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
     
-    df['Days'] = range(len(df))
+    df['Days'] = np.arange(len(df))
     model = LinearRegression()
     model.fit(df[['Days']], df['Close'])
     
@@ -113,10 +110,13 @@ def analyze_stock(df):
     future_days = np.array([last_day + i for i in range(1, 8)]).reshape(-1, 1)
     predictions = model.predict(future_days)
     
-    current_price = df['Close'].iloc[-1]
-    predicted_price = predictions[-1]
+    # FIX: Konversi ke float agar menjadi angka tunggal (bukan Series)
+    current_price = float(df['Close'].iloc[-1])
+    predicted_price = float(predictions[-1])
+    
     change_pct = ((predicted_price - current_price) / current_price) * 100
     
+    # Sekarang perbandingan aman
     trend = "BULLISH 📈" if change_pct > 2 else "BEARISH 📉" if change_pct < -2 else "SIDEWAYS ➡️"
     
     return df, predictions, trend, change_pct
@@ -170,7 +170,6 @@ st.markdown("---")
 # ==========================================
 if st.session_state.page == "chat":
     st.title("💬 Chat dengan Djamantara")
-    
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -178,10 +177,8 @@ if st.session_state.page == "chat":
     if prompt := st.chat_input("Ketik pesan atau tanya saham/crypto..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         save_chat("user", prompt)
-        
         with st.chat_message("user"):
             st.markdown(prompt)
-        
         with st.chat_message("assistant"):
             with st.spinner("Djamantara berpikir..."):
                 try:
@@ -197,18 +194,13 @@ if st.session_state.page == "chat":
                             model="llama-3.3-70b-versatile"
                         )
                         response = completion.choices[0].message.content
-                    
                     st.markdown(response)
-                    
-                    # Voice
                     asyncio.run(generate_voice(response))
                     if os.path.exists("temp_voice.mp3"):
                         with open("temp_voice.mp3", "rb") as f:
                             st.audio(f.read(), format="audio/mpeg")
-                    
                     st.session_state.messages.append({"role": "assistant", "content": response})
                     save_chat("assistant", response)
-                    
                 except Exception as e:
                     st.error(f"Error: {e}")
 
@@ -217,8 +209,6 @@ if st.session_state.page == "chat":
 # ==========================================
 elif st.session_state.page == "trading":
     st.title("📈 Smart Trading Analysis")
-    st.markdown("Analisis teknikal & prediksi harga saham/crypto")
-    
     col1, col2 = st.columns(2)
     with col1:
         symbol = st.text_input("Symbol", "BTC-USD").upper()
@@ -232,8 +222,8 @@ elif st.session_state.page == "trading":
         if df is not None and not df.empty:
             df, predictions, trend, change_pct = analyze_stock(df)
             
-            current_price = df['Close'].iloc[-1]
-            prev_price = df['Close'].iloc[-2]
+            current_price = float(df['Close'].iloc[-1])
+            prev_price = float(df['Close'].iloc[-2])
             daily_change = ((current_price - prev_price) / prev_price) * 100
             
             col1, col2, col3 = st.columns(3)
@@ -264,16 +254,14 @@ elif st.session_state.page == "trading":
             st.error("❌ Symbol tidak ditemukan!")
 
 # ==========================================
-# PAGE: FOTO - UPDATED MODEL
+# PAGE: FOTO
 # ==========================================
 elif st.session_state.page == "foto":
     st.title("📸 Upload & Analisa Foto")
-    
     uploaded_file = st.file_uploader("Pilih gambar", type=["jpg", "jpeg", "png"])
     
     if uploaded_file is not None:
         st.session_state.uploaded_img = uploaded_file
-        
         st.markdown("### Preview Foto:")
         st.image(uploaded_file, caption="Foto yang diupload", use_container_width=True)
         
@@ -281,50 +269,39 @@ elif st.session_state.page == "foto":
         if st.button("🔍 Analisa Gambar", type="primary", use_container_width=True):
             with st.spinner("AI sedang menganalisa..."):
                 try:
-                    # Compress image
                     img = Image.open(uploaded_file)
                     if img.size[0] > 1024:
                         ratio = 1024 / img.size[0]
                         new_size = (1024, int(img.size[1] * ratio))
                         img = img.resize(new_size)
                     
-                    # Convert to base64
                     buffered = io.BytesIO()
                     img.save(buffered, format="JPEG")
                     img_base64 = base64.b64encode(buffered.getvalue()).decode()
                     
-                    # Use updated vision model - MIXTRAL atau LLAMA terbaru
                     response = client.chat.completions.create(
                         messages=[
                             {
                                 "role": "user",
                                 "content": [
-                                    {"type": "text", "text": "Analisa gambar ini secara detail dalam bahasa Indonesia. Jelaskan apa yang ada di gambar ini."},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"}}
+                                    {"type": "text", "text": "Analisa gambar ini secara detail dalam bahasa Indonesia."},
+                                    {"type": "image_url", "image_url": {"url": f"image/jpeg;base64,{img_base64}"}}
                                 ]
                             }
                         ],
-                        model="llama-3.2-11b-vision-preview"  # Model vision yang masih supported
+                        model="llama-3.2-11b-vision-preview"
                     )
                     
                     st.markdown("### Hasil Analisa:")
                     st.success("✅ Analisa berhasil!")
                     st.markdown(response.choices[0].message.content)
                     
-                    # Voice
                     asyncio.run(generate_voice(response.choices[0].message.content))
                     if os.path.exists("temp_voice.mp3"):
                         with open("temp_voice.mp3", "rb") as f:
                             st.audio(f.read(), format="audio/mpeg")
-                    
                 except Exception as e:
-                    error_msg = str(e)
-                    if "decommissioned" in error_msg or "90b" in error_msg:
-                        st.error("❌ Model vision sedang tidak tersedia. Coba lagi nanti atau gunakan model alternatif.")
-                        # Fallback - deskripsi manual
-                        st.info("💡 Sebagai alternatif, deskripsikan foto yang ingin dianalisa di chat, nanti AI akan bantu analisa!")
-                    else:
-                        st.error(f"❌ Error: {error_msg}")
+                    st.error(f"❌ Error: {e}")
     else:
         st.info("📤 Silakan upload foto untuk dianalisa")
 
