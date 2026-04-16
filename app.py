@@ -174,24 +174,17 @@ def get_local_gif(file_path):
 def compress_image(uploaded_file, max_size=1024, quality=85):
     """
     Auto-compress gambar agar ukurannya kecil
-    max_size: ukuran maksimal lebar/tinggi (pixel)
-    quality: kualitas JPEG (1-100, semakin kecil semakin kompres)
     """
-    # Buka gambar
     img = Image.open(uploaded_file)
-    
-    # Convert ke RGB jika perlu (untuk handle PNG dengan transparansi)
     if img.mode in ('RGBA', 'P', 'LA'):
         img = img.convert('RGB')
     
-    # Resize jika terlalu besar
     width, height = img.size
     if width > max_size or height > max_size:
         ratio = min(max_size / width, max_size / height)
         new_size = (int(width * ratio), int(height * ratio))
         img = img.resize(new_size, Image.Resampling.LANCZOS)
     
-    # Compress ke JPEG
     img_byte_arr = io.BytesIO()
     img.save(img_byte_arr, format='JPEG', quality=quality, optimize=True)
     img_byte_arr.seek(0)
@@ -199,7 +192,7 @@ def compress_image(uploaded_file, max_size=1024, quality=85):
     return img_byte_arr
 
 def encode_image(image_source):
-    """Encode image ke base64, terima uploaded_file atau BytesIO"""
+    """Encode image ke base64"""
     if hasattr(image_source, 'seek'):
         image_source.seek(0)
     return base64.b64encode(image_source.read()).decode('utf-8')
@@ -251,6 +244,7 @@ if "compressed_image" not in st.session_state:
 # --- TAMPILKAN GIF HEADER ---
 gif_data = get_local_gif("kucing.gif")
 
+# !!! PENTING: Pastikan baris di bawah ini lengkap menjadi 'if gif_data:' !!!
 if gif_
     st.markdown(
         f"""
@@ -281,7 +275,6 @@ with col2:
 uploaded_file = st.file_uploader("", type=["jpg", "jpeg", "png"], key="main_uploader", label_visibility="collapsed")
 
 if uploaded_file:
-    # Auto-compress gambar
     with st.spinner("🔄 Kompres foto..."):
         try:
             compressed_img = compress_image(uploaded_file, max_size=1024, quality=85)
@@ -293,7 +286,6 @@ if uploaded_file:
 
 # --- INFO UKURAN FILE ---
 if st.session_state.compressed_image is not None:
-    # Hitung ukuran file
     st.session_state.compressed_image.seek(0)
     size_kb = len(st.session_state.compressed_image.read()) / 1024
     st.markdown(f'<div class="info-box">📦 Ukuran setelah kompres: {size_kb:.1f} KB</div>', unsafe_allow_html=True)
@@ -329,14 +321,12 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                # Ambil gambar compressed dari session state
                 image_to_use = st.session_state.compressed_image
                 
                 if image_to_use:
-                    # Encode gambar yang sudah dikompres
                     base64_image = encode_image(image_to_use)
                     
-                    # Gunakan model vision yang BARU & SUPPORTED
+                    # Menggunakan model vision terbaru yang supported
                     response = client.chat.completions.create(
                         messages=[
                             {
@@ -347,7 +337,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                 ]
                             }
                         ],
-                        model="llama-3.2-90b-vision-preview",  # MODEL BARU!
+                        model="llama-3.2-90b-vision-preview",
                     )
                     full_response = response.choices[0].message.content
                 else:
@@ -361,7 +351,6 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                     )
                     full_response = chat_completion.choices[0].message.content
                 
-                # Tampilkan respons dengan efek mengetik
                 placeholder = st.empty()
                 displayed_text = ""
                 for char in full_response:
@@ -370,7 +359,6 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                     time.sleep(0.005)
                 placeholder.markdown(full_response)
 
-                # Generate Suara & Tampilkan Player
                 run_async_safe(generate_voice, full_response)
                 if os.path.exists("temp_voice.mp3"):
                     st.audio("temp_voice.mp3", format="audio/mpeg")
