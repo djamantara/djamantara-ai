@@ -27,17 +27,17 @@ st.markdown("""
     #MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"] {
         visibility: hidden !important; display: none !important;
     }
-    
+
     /* Header Animation */
     .header-box { text-align: center; padding: 1rem; }
     .header-box img { max-width: 100px; border-radius: 50%; border: 2px solid #00d9ff; }
-    
+
     /* Floating Action Button Style untuk Upload */
     div[data-testid="stExpander"] {
         border: none !important;
         background: transparent !important;
     }
-    
+
     /* Preview Gambar Minimalis */
     .preview-container {
         position: fixed;
@@ -54,7 +54,7 @@ st.markdown("""
         gap: 10px;
         box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
     }
-    
+
     .moto-text { font-size: 0.8rem; color: #888; font-style: italic; }
     </style>
     """, unsafe_allow_html=True)
@@ -120,7 +120,7 @@ with cols[1]:
         if st.button("🗑️ Reset Semua"):
             st.session_state.image_data = None
             st.session_state.messages = []
-            st.rerun()
+            st.experimental_rerun()
 
 # Preview kecil jika ada gambar (seperti di Gemini)
 if st.session_state.image_data:
@@ -128,7 +128,7 @@ if st.session_state.image_data:
     st.image(st.session_state.image_data, width=80)
     if st.button("❌"):
         st.session_state.image_data = None
-        st.rerun()
+        st.experimental_rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Tampilan Chat
@@ -137,7 +137,7 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # Chat Input
-if prompt := st.chat_input("Tanya apa hari ini, Bos?"):
+if prompt := st.text_input("Tanya apa hari ini, Bos?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -161,19 +161,19 @@ if prompt := st.chat_input("Tanya apa hari ini, Bos?"):
                     messages=[{"role": "system", "content": "Kamu Djamantara, panggil user 'Bos'."}] + st.session_state.messages[-5:],
                     model="llama-3.3-70b-versatile",
                 )
-            
+
             res_text = response.choices[0].message.content
             st.markdown(res_text)
-            
+
             # Reset image setelah kirim (seperti Gemini)
             st.session_state.image_data = None
-            
+
             asyncio.run(text_to_speech(res_text))
             if os.path.exists("temp_voice.mp3"):
-                st.audio("temp_voice.mp3", autoplay=True)
-                
+                st.audio("temp_voice.mp3", format="audio/mp3", autoplay=True)
+
             st.session_state.messages.append({"role": "assistant", "content": res_text})
             save_chat("assistant", res_text)
-            
+
         except Exception as e:
             st.error(f"Error: {e}")
