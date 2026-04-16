@@ -6,6 +6,8 @@ import base64
 import os
 import sqlite3
 from groq import Groq
+from PIL import Image
+import io
 
 # ==========================================
 # --- KONFIGURASI API AMAN ---
@@ -80,18 +82,15 @@ st.markdown("""
         height: auto;
     }
     
-    /* Delete Button Styling */
-    .delete-btn {
-        background: #ff4444;
-        color: white;
-        border: none;
-        padding: 10px 20px;
+    /* Info Box */
+    .info-box {
+        background: #0d1b2a;
+        padding: 10px;
         border-radius: 8px;
-        cursor: pointer;
-        font-weight: bold;
-    }
-    .delete-btn:hover {
-        background: #cc0000;
+        margin: 10px 0;
+        font-size: 0.8rem;
+        color: #00d9ff;
+        text-align: center;
     }
     
     /* Chat Input Container */
@@ -172,9 +171,38 @@ def get_local_gif(file_path):
             return base64.b64encode(contents).decode("utf-8")
     return None
 
-def encode_image(uploaded_file):
-    uploaded_file.seek(0)
-    return base64.b64encode(uploaded_file.read()).decode('utf-8')
+def compress_image(uploaded_file, max_size=1024, quality=85):
+    """
+    Auto-compress gambar agar ukurannya kecil
+    max_size: ukuran maksimal lebar/tinggi (pixel)
+    quality: kualitas JPEG (1-100, semakin kecil semakin kompres)
+    """
+    # Buka gambar
+    img = Image.open(uploaded_file)
+    
+    # Convert ke RGB jika perlu (untuk handle PNG dengan transparansi)
+    if img.mode in ('RGBA', 'P', 'LA'):
+        img = img.convert('RGB')
+    
+    # Resize jika terlalu besar
+    width, height = img.size
+    if width > max_size or height > max_size:
+        ratio = min(max_size / width, max_size / height)
+        new_size = (int(width * ratio), int(height * ratio))
+        img = img.resize(new_size, Image.Resampling.LANCZOS)
+    
+    # Compress ke JPEG
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG', quality=quality, optimize=True)
+    img_byte_arr.seek(0)
+    
+    return img_byte_arr
+
+def encode_image(image_source):
+    """Encode image ke base64, terima uploaded_file atau BytesIO"""
+    if hasattr(image_source, 'seek'):
+        image_source.seek(0)
+    return base64.b64encode(image_source.read()).decode('utf-8')
 
 def run_async_safe(coro_func, *args):
     try:
@@ -213,6 +241,8 @@ if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
 if "current_image" not in st.session_state:
     st.session_state.current_image = None
+if "compressed_image" not in st.session_state:
+    st.session_state.compressed_image = None
 
 # ==========================================
 # --- 4. TAMPILAN UTAMA ---
@@ -221,11 +251,11 @@ if "current_image" not in st.session_state:
 # --- TAMPILKAN GIF HEADER ---
 gif_data = get_local_gif("kucing.gif")
 
-if gif_data:
+if gif_
     st.markdown(
         f"""
         <div style="text-align: center; margin-top: -20px;" class="cat-container">
-            <img src="data:image/gif;base64,{gif_data}" style="z-index: 1;">
+            <img src="image/gif;base64,{gif_data}" style="z-index: 1;">
             <h1 style="margin: 0; padding: 0;">🤖 Djamantara AI</h1>
             <p class="moto-text" style="color: gray; font-style: italic;">
                 "Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."
@@ -240,17 +270,33 @@ else:
 # --- TOMBOL HAPUS CHAT & UPLOAD FOTO ---
 col1, col2 = st.columns([3, 1])
 with col1:
-    st.markdown("### 📸 Upload Foto (Opsional)")
+    st.markdown("### 📸 Upload Foto (Auto Compress)")
 with col2:
     if st.button("🗑️ Hapus Chat", use_container_width=True, help="Hapus semua riwayat chat"):
         if clear_chat_db():
             st.session_state.messages = []
             st.rerun()
 
-# --- UPLOAD FOTO ---
+# --- UPLOAD FOTO DENGAN AUTO-COMPRESS ---
 uploaded_file = st.file_uploader("", type=["jpg", "jpeg", "png"], key="main_uploader", label_visibility="collapsed")
+
 if uploaded_file:
-    st.session_state.current_image = uploaded_file
+    # Auto-compress gambar
+    with st.spinner("🔄 Kompres foto..."):
+        try:
+            compressed_img = compress_image(uploaded_file, max_size=1024, quality=85)
+            st.session_state.current_image = uploaded_file
+            st.session_state.compressed_image = compressed_img
+            st.success("✅ Foto berhasil diupload & dikompres!")
+        except Exception as e:
+            st.error(f"❌ Gagal kompres: {e}")
+
+# --- INFO UKURAN FILE ---
+if st.session_state.compressed_image is not None:
+    # Hitung ukuran file
+    st.session_state.compressed_image.seek(0)
+    size_kb = len(st.session_state.compressed_image.read()) / 1024
+    st.markdown(f'<div class="info-box">📦 Ukuran setelah kompres: {size_kb:.1f} KB</div>', unsafe_allow_html=True)
 
 # --- TAMPILKAN FOTO JIKA ADA (PREVIEW PERMANEN) ---
 if st.session_state.current_image is not None:
@@ -261,6 +307,7 @@ if st.session_state.current_image is not None:
     with col2:
         if st.button("❌ Hapus Foto", use_container_width=True):
             st.session_state.current_image = None
+            st.session_state.compressed_image = None
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -282,22 +329,25 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                # Ambil gambar dari session state (TIDAK AKAN HILANG)
-                image_to_use = st.session_state.current_image
+                # Ambil gambar compressed dari session state
+                image_to_use = st.session_state.compressed_image
                 
                 if image_to_use:
+                    # Encode gambar yang sudah dikompres
                     base64_image = encode_image(image_to_use)
+                    
+                    # Gunakan model vision yang BARU & SUPPORTED
                     response = client.chat.completions.create(
                         messages=[
                             {
                                 "role": "user",
                                 "content": [
                                     {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                                    {"type": "image_url", "image_url": {"url": f"image/jpeg;base64,{base64_image}"}}
                                 ]
                             }
                         ],
-                        model="llama-3.2-11b-vision-preview",
+                        model="llama-3.2-90b-vision-preview",  # MODEL BARU!
                     )
                     full_response = response.choices[0].message.content
                 else:
