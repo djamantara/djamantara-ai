@@ -46,6 +46,7 @@ st.markdown("""
     footer {visibility: hidden !important;}
     .stAppDeployButton {visibility: hidden !important;}
     [data-testid="stFooter"] {visibility: hidden !important; display: none !important;}
+    .stDeployButton {display: none !important;}
     
     /* LAYOUT */
     .main .block-container {
@@ -164,7 +165,8 @@ def autoplay_audio(file_path):
 # ==========================================
 gif_data = get_local_gif("kucing.gif")
 
-if gif_
+# ✅ PERBAIKAN DI SINI: gif_ -> gif_data:
+if gif_data:
     st.markdown(
         f"""
         <div style="text-align: center; margin-top: -30px;" class="cat-container">
@@ -246,7 +248,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                     {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
                                     {
                                         "type": "image_url",
-                                        "image_url": { "url": f"image/jpeg;base64,{base64_image}" },
+                                        "image_url": { "url": f"data:image/jpeg;base64,{base64_image}" },
                                     },
                                 ],
                             }
