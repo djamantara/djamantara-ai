@@ -128,11 +128,11 @@ def play_audio(path):
 # ==========================================
 # --- UI HEADER ---
 # ==========================================
-gif = get_gif("kucing.gif")
-if gif_data:  # ✅ FIXED TYPO
+gif_data = get_gif("kucing.gif")  # ✅ VARIABLE NAME CONSISTENT
+if gif_data:  # ✅ NOW CORRECT
     st.markdown(f"""
         <div class="cat-container" style="text-align:center;">
-            <img src="data:image/gif;base64,{gif}">
+            <img src="data:image/gif;base64,{gif_data}">
             <h1>🤖 Djamantara AI</h1>
             <p class="moto">"Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."</p>
         </div>
