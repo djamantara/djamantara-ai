@@ -10,44 +10,6 @@ import io
 from groq import Groq
 
 # ==========================================
-# --- HIDE STREAMLIT BRANDING (FULL) ---
-# ==========================================
-hide_streamlit_style = """
-    <style>
-    /* Hide main menu */
-    #MainMenu {visibility: hidden;}
-    
-    /* Hide header */
-    header {visibility: hidden;}
-    
-    /* Hide footer */
-    footer {visibility: hidden;}
-    
-    /* Hide deployment button (Fork button) */
-    .stAppDeployButton {
-        visibility: hidden !important;
-        display: none !important;
-    }
-    
-    /* Hide viewer badge */
-    .viewerBadge {
-        visibility: hidden !important;
-        display: none !important;
-    }
-    
-    /* Hide all Streamlit branding elements */
-    [data-testid="stToolbar"] {visibility: hidden;}
-    [data-testid="stDecoration"] {display: none;}
-    [data-testid="stFooter"] {visibility: hidden;}
-    
-    /* Additional hide for mobile */
-    .css-164r1f {display: none !important;}
-    .css-1l0r2l2 {display: none !important;}
-    </style>
-    """
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-# ==========================================
 # --- KONFIGURASI API AMAN (SECRETS) ---
 # ==========================================
 if "GROQ_API_KEY" in st.secrets:
@@ -74,10 +36,18 @@ st.set_page_config(
 )
 
 # ==========================================
-# --- CSS INJECTION (RESPONSIVE) ---
+# --- CSS INJECTION (HIDE BRANDING + RESPONSIVE) ---
 # ==========================================
 st.markdown("""
     <style>
+    /* HIDE STREAMLIT BRANDING */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden !important;}
+    .stAppDeployButton {visibility: hidden !important;}
+    [data-testid="stFooter"] {visibility: hidden !important; display: none !important;}
+    
+    /* LAYOUT */
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 5rem;
@@ -95,6 +65,8 @@ st.markdown("""
     .stChatInputContainer {
         padding-bottom: 20px;
     }
+    
+    /* MOBILE */
     @media only screen and (max-width: 600px) {
         h1 { font-size: 1.8rem !important; }
         .moto-text { font-size: 0.8rem !important; }
@@ -192,7 +164,7 @@ def autoplay_audio(file_path):
 # ==========================================
 gif_data = get_local_gif("kucing.gif")
 
-if gif_data:
+if gif_
     st.markdown(
         f"""
         <div style="text-align: center; margin-top: -30px;" class="cat-container">
@@ -206,6 +178,9 @@ if gif_data:
         unsafe_allow_html=True
     )
 
+# ==========================================
+# --- SIDEBAR DENGAN UPLOAD GAMBAR ---
+# ==========================================
 with st.sidebar:
     st.title("👁️ Mata Kocheng")
     uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"])
@@ -227,6 +202,9 @@ with st.sidebar:
             del st.session_state.current_image
         st.rerun()
 
+# ==========================================
+# --- CHAT HISTORY ---
+# ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
 
@@ -251,7 +229,12 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                image_to_use = uploaded_file if uploaded_file is not None else st.session_state.get("current_image")
+                # Handle image upload dengan aman
+                image_to_use = None
+                if 'uploaded_file' in locals() and uploaded_file is not None:
+                    image_to_use = uploaded_file
+                elif "current_image" in st.session_state:
+                    image_to_use = st.session_state.current_image
                 
                 if image_to_use:
                     base64_image = encode_image(image_to_use)
@@ -263,7 +246,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                     {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
                                     {
                                         "type": "image_url",
-                                        "image_url": { "url": f"data:image/jpeg;base64,{base64_image}" },
+                                        "image_url": { "url": f"image/jpeg;base64,{base64_image}" },
                                     },
                                 ],
                             }
