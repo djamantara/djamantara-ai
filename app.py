@@ -15,7 +15,7 @@ from groq import Groq
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
-    st.error("⚠️ API Key 'GROQ_API_KEY' tidak ditemukan! Cek Settings > Secrets.")
+    st.error("⚠️ API Key 'GROQ_API_KEY' tidak ditemukan!")
     st.stop()
 
 # Setup Client
@@ -32,7 +32,7 @@ st.set_page_config(
     page_title="Djamantara AI", 
     page_icon="🐱", 
     layout="centered",
-    initial_sidebar_state="expanded"  # ✅ SIDEBAR TERBUKA OTOMATIS
+    initial_sidebar_state="collapsed"
 )
 
 # ==========================================
@@ -51,7 +51,7 @@ st.markdown("""
     /* LAYOUT */
     .main .block-container {
         padding-top: 2rem;
-        padding-bottom: 5rem;
+        padding-bottom: 2rem;
         padding-left: 1rem;
         padding-right: 1rem;
     }
@@ -63,8 +63,21 @@ st.markdown("""
         font-size: 0.9rem !important;
         line-height: 1.4;
     }
-    .stChatInputContainer {
-        padding-bottom: 20px;
+    
+    /* UPLOAD CONTAINER */
+    .upload-container {
+        background-color: #1e1e1e;
+        padding: 1rem;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        border: 2px solid #333;
+    }
+    
+    /* BUTTON STYLES */
+    .stButton>button {
+        width: 100%;
+        border-radius: 8px;
+        font-weight: bold;
     }
     
     /* MOBILE */
@@ -179,40 +192,40 @@ if gif_data:
         unsafe_allow_html=True
     )
 
+st.markdown("<div style='margin: 20px 0;'></div>", unsafe_allow_html=True)
+
 # ==========================================
-# --- SIDEBAR (TERBUKA OTOMATIS) ---
+# --- UPLOAD & HAPUS INGATAN (DI HALAMAN UTAMA) ---
 # ==========================================
-with st.sidebar:
-    st.title("👁️ Mata Kocheng")
-    st.markdown("### Upload Foto")
-    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"], help="Upload foto untuk dianalisa oleh Djamantara")
+with st.container():
+    st.markdown('<div class="upload-container">', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        uploaded_file = st.file_uploader("", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+    
+    with col2:
+        if st.button("🗑️ Hapus", use_container_width=True, help="Hapus semua chat"):
+            conn = sqlite3.connect('djamantara_memory.db')
+            conn.cursor().execute("DELETE FROM chat_history")
+            conn.commit()
+            conn.close()
+            st.session_state.messages = []
+            if "current_image" in st.session_state:
+                del st.session_state.current_image
+            st.rerun()
     
     if uploaded_file:
         st.session_state.current_image = uploaded_file
-        st.image(uploaded_file, caption="Foto Siap!", use_container_width=True)
-        st.success("✅ Foto berhasil diupload!")
+        st.success("✅ Foto siap dianalisa!")
+        st.image(uploaded_file, caption="Foto yang diupload", use_container_width=True)
     elif "current_image" in st.session_state:
-        st.image(st.session_state.current_image, caption="Foto Siap!", use_container_width=True)
-        uploaded_file = st.session_state.current_image
         st.success("✅ Foto tersimpan!")
+        st.image(st.session_state.current_image, caption="Foto yang diupload", use_container_width=True)
+        uploaded_file = st.session_state.current_image
     
-    st.divider()
-    
-    # TOMBOL HAPUS INGATAN
-    st.markdown("### ⚙️ Pengaturan")
-    if st.button("🗑️ Hapus Ingatan", use_container_width=True, help="Hapus semua riwayat chat"):
-        conn = sqlite3.connect('djamantara_memory.db')
-        conn.cursor().execute("DELETE FROM chat_history")
-        conn.commit()
-        conn.close()
-        st.session_state.messages = []
-        if "current_image" in st.session_state:
-            del st.session_state.current_image
-        st.success("✅ Ingatan berhasil dihapus!")
-        st.rerun()
-    
-    st.markdown("---")
-    st.markdown("*Djamantara AI - Kocheng Pinter*")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
 # --- CHAT HISTORY ---
@@ -229,7 +242,7 @@ for message in st.session_state.messages:
 # ==========================================
 if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     if not client:
-        st.error("⚠️ Koneksi ke Groq belum siap. Cek API Key di secrets.")
+        st.error("⚠️ Koneksi ke Groq belum siap.")
         st.stop()
 
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -241,7 +254,6 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                # Handle image upload dengan aman
                 image_to_use = None
                 if 'uploaded_file' in locals() and uploaded_file is not None:
                     image_to_use = uploaded_file
@@ -258,7 +270,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                     {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
                                     {
                                         "type": "image_url",
-                                        "image_url": { "url": f"data:image/jpeg;base64,{base64_image}" },
+                                        "image_url": { "url": f"image/jpeg;base64,{base64_image}" },
                                     },
                                 ],
                             }
