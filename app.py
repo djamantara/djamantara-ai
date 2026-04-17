@@ -21,53 +21,17 @@ except Exception as e:
 
 st.set_page_config(page_title="Djamantara AI", page_icon="🐱", layout="centered", initial_sidebar_state="collapsed")
 
-# ==========================================
-# ✅ CSS FIX: SEMUA TOMBOL NEMPEL TANPA JARAK
-# ==========================================
 st.markdown("""
     <style>
-    /* Hide Streamlit UI */
     #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden !important;}
     .stAppDeployButton, [data-testid="stFooter"], .stDeployButton {display: none !important;}
-    
-    /* Layout */
-    .main .block-container { padding-top: 1rem; padding-bottom: 0; }
+    .main .block-container { padding-top: 1rem; padding-bottom: 0.5rem; }
     .cat-container img { max-width: 80px; height: auto; margin-bottom: 5px; }
     h1 { text-align: center; margin: 0; font-size: 1.8rem; }
     .moto { text-align: center; color: #888; font-style: italic; font-size: 0.85rem; margin-bottom: 15px; }
-    
-    /* ✅ UNIFIED STICKY FOOTER (Upload + Hapus + Chat Input) */
-    .sticky-footer {
-        position: sticky;
-        bottom: 0;
-        background: var(--background-color);
-        padding: 8px 0 16px 0;
-        z-index: 999;
-        border-top: 1px solid #444;
-        margin-top: 10px;
-    }
-    .footer-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 8px;
-    }
-    .footer-row:last-child { margin-bottom: 0; }
-    .upload-wrap { flex: 1; }
-    .delete-btn { min-width: 70px; }
-    .stButton>button { border-radius: 6px; font-weight: 600; }
-    
-    /* Chat input tanpa padding ekstra */
-    .stChatInputContainer { padding: 0 !important; margin: 0 !important; }
-    .stChatInputContainer > div { padding: 0 !important; }
-    
-    /* Mobile */
-    @media (max-width: 600px) {
-        .footer-row { flex-direction: column; gap: 6px; }
-        .delete-btn { width: 100%; }
-        h1 { font-size: 1.6rem !important; }
-        .moto { font-size: 0.75rem !important; }
-    }
+    .control-panel { position: sticky; bottom: 0; background: var(--background-color); padding: 8px 0 12px 0; z-index: 999; border-top: 1px solid #444; }
+    .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; }
+    .stChatInputContainer { padding-top: 4px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -129,7 +93,6 @@ def play_audio(path):
         with open(path, "rb") as f: b64 = base64.b64encode(f.read()).decode()
         st.markdown(f'<audio autoplay="true"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
 
-# Header
 gif_data = get_gif("kucing.gif")
 if gif_data:
     st.markdown(f"""
@@ -140,50 +103,41 @@ if gif_data:
         </div>
     """, unsafe_allow_html=True)
 
-# Chat history
 if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
+
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# ==========================================
-# ✅ UNIFIED FOOTER: UPLOAD + HAPUS + CHAT INPUT
-# ==========================================
 with st.container():
-    st.markdown('<div class="sticky-footer">', unsafe_allow_html=True)
-    
-    # Row 1: Upload + Hapus
-    st.markdown('<div class="footer-row">', unsafe_allow_html=True)
-    c1, c2 = st.columns([4, 1])
+    st.markdown('<div class="control-panel">', unsafe_allow_html=True)
+    c1, c2 = st.columns([3, 1])
     with c1:
-        upl = st.file_uploader("", type=["jpg","jpeg","png"], label_visibility="collapsed", help="Upload foto")
+        upl = st.file_uploader("", type=["jpg","jpeg","png"], label_visibility="collapsed", help="Upload foto untuk dianalisa")
         if upl:
             st.session_state.current_image = upl
-            st.success("✅ Foto siap!", icon="📷")
+            st.success("✅ Foto siap dianalisa!", icon="📷")
             st.image(upl, caption="Preview", use_container_width=True)
+            if st.button("Kirim Gambar"):
+                st.session_state.messages.append({"role": "user", "content": "Gambar"})
+                save_chat("user", "Gambar")
+                with st.chat_message("user"): st.markdown("Gambar")
+                with st.chat_message("assistant"): st.image(upl, caption="Gambar", use_container_width=True)
         elif "current_image" in st.session_state:
-            st.success("✅ Foto tersimpan!", icon="💾")
+            st.success("✅ Foto tersimpan di memori!", icon="💾")
             st.image(st.session_state.current_image, caption="Preview", use_container_width=True)
             upl = st.session_state.current_image
     with c2:
-        if st.button("🗑️ Hapus", use_container_width=True, type="secondary", key="del_btn"):
+        if st.button("🗑️ Hapus", use_container_width=True, type="secondary"):
             conn = sqlite3.connect('djamantara_memory.db')
             conn.cursor().execute("DELETE FROM chat_history"); conn.commit(); conn.close()
             st.session_state.messages = []
             if "current_image" in st.session_state: del st.session_state.current_image
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Row 2: Chat Input (langsung nempel di bawah)
-    st.markdown('<div class="footer-row" style="margin-top:-4px;">', unsafe_allow_html=True)
-    prompt = st.chat_input("Ngobrol moso Djamantara, Bos...", key="chat_input")
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
 
-# Chat logic
-if prompt:
+if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     if not client: st.error("⚠️ API Key error!"); st.stop()
 
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -194,9 +148,10 @@ if prompt:
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
                 img = st.session_state.get("current_image")
-                
+
                 if img:
                     b64 = encode_img(img)
+                    # ✅ MODEL VISION TERBARU GROQ
                     resp = client.chat.completions.create(
                         model="meta-llama/llama-4-scout-17b-16e-instruct",
                         messages=[{"role": "user", "content": [
@@ -214,15 +169,15 @@ if prompt:
                         messages=[{"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Bahasa santai Indonesia-Madura."}, *ctx]
                     )
                     full = resp.choices[0].message.content
-                
+
                 ph = st.empty(); txt = ""
                 for c in full:
                     txt += c; ph.markdown(txt + "▌"); time.sleep(0.01)
                 ph.markdown(full)
-                
+
                 run_async(gen_voice, full)
                 play_audio("temp_voice.mp3")
-                
+
                 st.session_state.messages.append({"role": "assistant", "content": full})
                 save_chat("assistant", full)
             except Exception as e:
