@@ -7,9 +7,6 @@ import os
 import sqlite3
 from groq import Groq
 
-# ==========================================
-# --- KONFIGURASI API AMAN ---
-# ==========================================
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
@@ -22,51 +19,22 @@ try:
 except Exception as e:
     st.error(f"⚠️ Gagal koneksi ke Groq: {e}")
 
-# ==========================================
-# --- PAGE CONFIG ---
-# ==========================================
-st.set_page_config(
-    page_title="Djamantara AI",
-    page_icon="🐱",
-    layout="centered",
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="Djamantara AI", page_icon="🐱", layout="centered", initial_sidebar_state="collapsed")
 
-# ==========================================
-# --- CSS CLEAN (NO BLACK BAR, BUTTONS STICKY) ---
-# ==========================================
 st.markdown("""
     <style>
-    /* Hide Streamlit UI */
     #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden !important;}
     .stAppDeployButton, [data-testid="stFooter"], .stDeployButton {display: none !important;}
-    
-    /* Clean Layout */
     .main .block-container { padding-top: 1rem; padding-bottom: 0.5rem; }
     .cat-container img { max-width: 80px; height: auto; margin-bottom: 5px; }
     h1 { text-align: center; margin: 0; font-size: 1.8rem; }
     .moto { text-align: center; color: #888; font-style: italic; font-size: 0.85rem; margin-bottom: 15px; }
-    
-    /* Sticky Control Panel (Upload + Hapus) */
-    .control-panel {
-        position: sticky;
-        bottom: 0;
-        background: var(--background-color);
-        padding: 8px 0 12px 0;
-        z-index: 999;
-        border-top: 1px solid #444;
-    }
-    .upload-box { background: #222; padding: 6px 8px; border-radius: 8px; border: 1px solid #555; }
+    .control-panel { position: sticky; bottom: 0; background: var(--background-color); padding: 8px 0 12px 0; z-index: 999; border-top: 1px solid #444; }
     .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; }
-    
-    /* Chat Input */
     .stChatInputContainer { padding-top: 4px; }
     </style>
     """, unsafe_allow_html=True)
 
-# ==========================================
-# --- DATABASE & HELPERS ---
-# ==========================================
 def init_db():
     conn = sqlite3.connect('djamantara_memory.db')
     conn.cursor().execute('''CREATE TABLE IF NOT EXISTS chat_history (role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
@@ -123,24 +91,18 @@ async def gen_voice(text):
 def play_audio(path):
     if os.path.exists(path):
         with open(path, "rb") as f: b64 = base64.b64encode(f.read()).decode()
-        st.markdown(f'<audio autoplay="true"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
+        st.markdown(f'<audio autoplay="true"><source src="audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
 
-# ==========================================
-# --- UI HEADER ---
-# ==========================================
-gif_data = get_gif("kucing.gif")  # ✅ VARIABLE NAME CONSISTENT
-if gif_data:  # ✅ NOW CORRECT
+gif_data = get_gif("kucing.gif")
+if gif_
     st.markdown(f"""
         <div class="cat-container" style="text-align:center;">
-            <img src="data:image/gif;base64,{gif_data}">
+            <img src="image/gif;base64,{gif_data}">
             <h1>🤖 Djamantara AI</h1>
             <p class="moto">"Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."</p>
         </div>
     """, unsafe_allow_html=True)
 
-# ==========================================
-# --- CHAT HISTORY ---
-# ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
 
@@ -148,9 +110,6 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# ==========================================
-# --- STICKY CONTROL PANEL (UPLOAD + HAPUS) ---
-# ==========================================
 with st.container():
     st.markdown('<div class="control-panel">', unsafe_allow_html=True)
     c1, c2 = st.columns([3, 1])
@@ -173,9 +132,6 @@ with st.container():
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ==========================================
-# --- CHAT LOGIC ---
-# ==========================================
 if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     if not client: st.error("⚠️ API Key error!"); st.stop()
 
@@ -190,12 +146,13 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                 
                 if img:
                     b64 = encode_img(img)
+                    # ✅ PAKAI MODEL VISION TERBARU GROQ
                     resp = client.chat.completions.create(
                         messages=[{"role": "user", "content": [
                             {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura. Panggil 'Bos'. Analisa gambar ini: {prompt}"},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                            {"type": "image_url", "image_url": {"url": f"image/jpeg;base64,{b64}"}}
                         ]}],
-                        model="llama-3.2-11b-vision-preview"
+                        model="llama-3.2-90b-vision-preview"  # ✅ MODEL BARU
                     )
                     full = resp.choices[0].message.content
                 else:
