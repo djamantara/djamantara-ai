@@ -10,16 +10,16 @@ from groq import Groq
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
-    st.error("⚠️ API Key belum disetting di Secrets!")
+    st.error(" API Key belum disetting di Secrets!")
     st.stop()
 
 client = None
 try:
     client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
-    st.error(f"⚠️ Gagal koneksi ke Groq: {e}")
+    st.error(f" Gagal koneksi ke Groq: {e}")
 
-st.set_page_config(page_title="Djamantara AI", page_icon="🐱", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Djamantara AI", page_icon="", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -98,8 +98,8 @@ if gif_data:
     st.markdown(f"""
         <div class="cat-container" style="text-align:center;">
             <img src="data:image/gif;base64,{gif_data}">
-            <h1>🤖 Djamantara AI</h1>
-            <p class="moto">"Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."</p>
+            <h1> Djamantara AI</h1>
+            <p class="moto">"Entar kon ob.  nggih jhÂlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -117,14 +117,19 @@ with st.container():
         upl = st.file_uploader("", type=["jpg","jpeg","png"], label_visibility="collapsed", help="Upload foto untuk dianalisa")
         if upl:
             st.session_state.current_image = upl
-            st.success("✅ Foto siap dianalisa!", icon="📷")
+            st.success("Foto siap dianalisa!", icon="")
             st.image(upl, caption="Preview", use_container_width=True)
+            if st.button("Kirim Gambar"):
+                st.session_state.messages.append({"role": "user", "content": "Gambar"})
+                save_chat("user", "Gambar")
+                with st.chat_message("user"): st.markdown("Gambar")
+                with st.chat_message("assistant"): st.image(upl, caption="Gambar", use_container_width=True)
         elif "current_image" in st.session_state:
-            st.success("✅ Foto tersimpan di memori!", icon="💾")
+            st.success("Foto tersimpan di memori!", icon="")
             st.image(st.session_state.current_image, caption="Preview", use_container_width=True)
             upl = st.session_state.current_image
     with c2:
-        if st.button("🗑️ Hapus", use_container_width=True, type="secondary"):
+        if st.button("Hapus", use_container_width=True, type="secondary"):
             conn = sqlite3.connect('djamantara_memory.db')
             conn.cursor().execute("DELETE FROM chat_history"); conn.commit(); conn.close()
             st.session_state.messages = []
@@ -133,7 +138,7 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
-    if not client: st.error("⚠️ API Key error!"); st.stop()
+    if not client: st.error(" API Key error!"); st.stop()
 
     st.session_state.messages.append({"role": "user", "content": prompt})
     save_chat("user", prompt)
@@ -146,7 +151,6 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
 
                 if img:
                     b64 = encode_img(img)
-                    # ✅ MODEL VISION TERBARU GROQ
                     resp = client.chat.completions.create(
                         model="meta-llama/llama-4-scout-17b-16e-instruct",
                         messages=[{"role": "user", "content": [
@@ -167,7 +171,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
 
                 ph = st.empty(); txt = ""
                 for c in full:
-                    txt += c; ph.markdown(txt + "▌"); time.sleep(0.01)
+                    txt += c; ph.markdown(txt + ""); time.sleep(0.01)
                 ph.markdown(full)
 
                 run_async(gen_voice, full)
@@ -176,7 +180,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                 st.session_state.messages.append({"role": "assistant", "content": full})
                 save_chat("assistant", full)
             except Exception as e:
-                st.error(f"⚠️ Error: {str(e)}")
+                st.error(f" Error: {str(e)}")
 
 if os.path.exists("temp_voice.mp3"):
     try: time.sleep(3); os.remove("temp_voice.mp3")
