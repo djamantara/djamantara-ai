@@ -91,13 +91,13 @@ async def gen_voice(text):
 def play_audio(path):
     if os.path.exists(path):
         with open(path, "rb") as f: b64 = base64.b64encode(f.read()).decode()
-        st.markdown(f'<audio autoplay="true"><source src="audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
+        st.markdown(f'<audio autoplay="true"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
 
 gif_data = get_gif("kucing.gif")
-if gif_
+if gif_data:
     st.markdown(f"""
         <div class="cat-container" style="text-align:center;">
-            <img src="image/gif;base64,{gif_data}">
+            <img src="data:image/gif;base64,{gif_data}">
             <h1>🤖 Djamantara AI</h1>
             <p class="moto">"Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."</p>
         </div>
@@ -143,34 +143,36 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
                 img = st.session_state.get("current_image")
-                
+
                 if img:
                     b64 = encode_img(img)
-                    # ✅ PAKAI MODEL VISION TERBARU GROQ
+                    # ✅ MODEL VISION TERBARU GROQ
                     resp = client.chat.completions.create(
+                        model="meta-llama/llama-4-scout-17b-16e-instruct",
                         messages=[{"role": "user", "content": [
                             {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura. Panggil 'Bos'. Analisa gambar ini: {prompt}"},
-                            {"type": "image_url", "image_url": {"url": f"image/jpeg;base64,{b64}"}}
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
                         ]}],
-                        model="llama-3.2-90b-vision-preview"  # ✅ MODEL BARU
+                        temperature=0.7,
+                        max_completion_tokens=1024
                     )
                     full = resp.choices[0].message.content
                 else:
                     ctx = st.session_state.messages[-5:]
                     resp = client.chat.completions.create(
-                        messages=[{"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Bahasa santai Indonesia-Madura."}, *ctx],
-                        model="llama-3.3-70b-versatile"
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Bahasa santai Indonesia-Madura."}, *ctx]
                     )
                     full = resp.choices[0].message.content
-                
+
                 ph = st.empty(); txt = ""
                 for c in full:
                     txt += c; ph.markdown(txt + "▌"); time.sleep(0.01)
                 ph.markdown(full)
-                
+
                 run_async(gen_voice, full)
                 play_audio("temp_voice.mp3")
-                
+
                 st.session_state.messages.append({"role": "assistant", "content": full})
                 save_chat("assistant", full)
             except Exception as e:
