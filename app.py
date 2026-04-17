@@ -32,7 +32,7 @@ st.set_page_config(
     page_title="Djamantara AI", 
     page_icon="🐱", 
     layout="centered",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"  # ✅ SIDEBAR TERBUKA OTOMATIS
 )
 
 # ==========================================
@@ -165,7 +165,6 @@ def autoplay_audio(file_path):
 # ==========================================
 gif_data = get_local_gif("kucing.gif")
 
-# ✅ PERBAIKAN DI SINI: gif_ -> gif_data:
 if gif_data:
     st.markdown(
         f"""
@@ -181,20 +180,27 @@ if gif_data:
     )
 
 # ==========================================
-# --- SIDEBAR DENGAN UPLOAD GAMBAR ---
+# --- SIDEBAR (TERBUKA OTOMATIS) ---
 # ==========================================
 with st.sidebar:
     st.title("👁️ Mata Kocheng")
-    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"])
+    st.markdown("### Upload Foto")
+    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"], help="Upload foto untuk dianalisa oleh Djamantara")
+    
     if uploaded_file:
         st.session_state.current_image = uploaded_file
         st.image(uploaded_file, caption="Foto Siap!", use_container_width=True)
+        st.success("✅ Foto berhasil diupload!")
     elif "current_image" in st.session_state:
         st.image(st.session_state.current_image, caption="Foto Siap!", use_container_width=True)
         uploaded_file = st.session_state.current_image
+        st.success("✅ Foto tersimpan!")
     
     st.divider()
-    if st.button("Hapus Ingatan"):
+    
+    # TOMBOL HAPUS INGATAN
+    st.markdown("### ⚙️ Pengaturan")
+    if st.button("🗑️ Hapus Ingatan", use_container_width=True, help="Hapus semua riwayat chat"):
         conn = sqlite3.connect('djamantara_memory.db')
         conn.cursor().execute("DELETE FROM chat_history")
         conn.commit()
@@ -202,7 +208,11 @@ with st.sidebar:
         st.session_state.messages = []
         if "current_image" in st.session_state:
             del st.session_state.current_image
+        st.success("✅ Ingatan berhasil dihapus!")
         st.rerun()
+    
+    st.markdown("---")
+    st.markdown("*Djamantara AI - Kocheng Pinter*")
 
 # ==========================================
 # --- CHAT HISTORY ---
