@@ -10,31 +10,72 @@ import io
 from groq import Groq
 
 # ==========================================
+# --- HIDE STREAMLIT BRANDING (FULL) ---
+# ==========================================
+hide_streamlit_style = """
+    <style>
+    /* Hide main menu */
+    #MainMenu {visibility: hidden;}
+    
+    /* Hide header */
+    header {visibility: hidden;}
+    
+    /* Hide footer */
+    footer {visibility: hidden;}
+    
+    /* Hide deployment button (Fork button) */
+    .stAppDeployButton {
+        visibility: hidden !important;
+        display: none !important;
+    }
+    
+    /* Hide viewer badge */
+    .viewerBadge {
+        visibility: hidden !important;
+        display: none !important;
+    }
+    
+    /* Hide all Streamlit branding elements */
+    [data-testid="stToolbar"] {visibility: hidden;}
+    [data-testid="stDecoration"] {display: none;}
+    [data-testid="stFooter"] {visibility: hidden;}
+    
+    /* Additional hide for mobile */
+    .css-164r1f {display: none !important;}
+    .css-1l0r2l2 {display: none !important;}
+    </style>
+    """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+# ==========================================
 # --- KONFIGURASI API AMAN (SECRETS) ---
 # ==========================================
-# Mengambil API Key dari secrets, tidak hardcoded.
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
     st.error("⚠️ API Key 'GROQ_API_KEY' tidak ditemukan! Cek Settings > Secrets.")
     st.stop()
 
-# Setup Client dengan proteksi error
+# Setup Client
 client = None
 try:
     client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
     st.error(f"⚠️ Waduh Bos, Groq-nya bermasalah: {e}")
 
+# ==========================================
 # --- SETTING LAYAR MOBILE RESPONSIF ---
+# ==========================================
 st.set_page_config(
     page_title="Djamantara AI", 
-    page_icon="", 
+    page_icon="🐱", 
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS INJECTION ---
+# ==========================================
+# --- CSS INJECTION (RESPONSIVE) ---
+# ==========================================
 st.markdown("""
     <style>
     .main .block-container {
@@ -54,8 +95,6 @@ st.markdown("""
     .stChatInputContainer {
         padding-bottom: 20px;
     }
-    footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
     @media only screen and (max-width: 600px) {
         h1 { font-size: 1.8rem !important; }
         .moto-text { font-size: 0.8rem !important; }
@@ -199,7 +238,6 @@ for message in st.session_state.messages:
 # --- 4. LOGIKA PERCAKAPAN ---
 # ==========================================
 if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
-    # Cek apakah client API sudah siap
     if not client:
         st.error("⚠️ Koneksi ke Groq belum siap. Cek API Key di secrets.")
         st.stop()
@@ -260,7 +298,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
             except Exception as e:
                 st.error(f"Duh Bos, sistem macet: {str(e)}")
 
-# Cleanup file suara
+# Cleanup
 if os.path.exists("temp_voice.mp3"):
     try: 
         time.sleep(3)
