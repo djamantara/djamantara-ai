@@ -10,24 +10,31 @@ import io
 from groq import Groq
 
 # ==========================================
-# --- KONFIGURASI API AMAN (NO. 1) ---
+# --- KONFIGURASI API AMAN (SECRETS) ---
 # ==========================================
-# Kita ambil API Key dari Secrets Streamlit, bukan ditulis manual di sini.
+# Mengambil API Key dari secrets, tidak hardcoded.
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
-    st.error("⚠️ API Key 'GROQ_API_KEY' tidak ditemukan! Harap masukkan di menu Settings > Secrets pada dashboard Streamlit.")
+    st.error("⚠️ API Key 'GROQ_API_KEY' tidak ditemukan! Cek Settings > Secrets.")
     st.stop()
+
+# Setup Client dengan proteksi error
+client = None
+try:
+    client = Groq(api_key=GROQ_API_KEY)
+except Exception as e:
+    st.error(f"⚠️ Waduh Bos, Groq-nya bermasalah: {e}")
 
 # --- SETTING LAYAR MOBILE RESPONSIF ---
 st.set_page_config(
     page_title="Djamantara AI", 
-    page_icon="🐱", 
+    page_icon="", 
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS INJECTION (Biar Ganteng & Responsif di Hape) ---
+# --- CSS INJECTION ---
 st.markdown("""
     <style>
     .main .block-container {
@@ -55,12 +62,6 @@ st.markdown("""
     }
     </style>
     """, unsafe_allow_html=True)
-
-# Setup Klien API
-try:
-    client = Groq(api_key=GROQ_API_KEY)
-except Exception as e:
-    st.error(f"⚠️ Waduh Bos, Groq-nya bermasalah: {e}")
 
 # ==========================================
 # --- 1. SISTEM INGATAN (DATABASE) ---
@@ -95,7 +96,7 @@ def load_chat():
 init_db()
 
 # ==========================================
-# --- 2. FUNGSI PENDUKUNG (MEDIA) ---
+# --- 2. FUNGSI PENDUKUNG ---
 # ==========================================
 def get_local_gif(file_path):
     if os.path.exists(file_path):
@@ -198,6 +199,11 @@ for message in st.session_state.messages:
 # --- 4. LOGIKA PERCAKAPAN ---
 # ==========================================
 if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
+    # Cek apakah client API sudah siap
+    if not client:
+        st.error("⚠️ Koneksi ke Groq belum siap. Cek API Key di secrets.")
+        st.stop()
+
     st.session_state.messages.append({"role": "user", "content": prompt})
     save_chat("user", prompt)
     
@@ -254,7 +260,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
             except Exception as e:
                 st.error(f"Duh Bos, sistem macet: {str(e)}")
 
-# Cleanup
+# Cleanup file suara
 if os.path.exists("temp_voice.mp3"):
     try: 
         time.sleep(3)
