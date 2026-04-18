@@ -4,185 +4,166 @@ import edge_tts
 import asyncio
 import base64
 import os
-import sqlite3
 from groq import Groq
 
-if "GROQ_API_KEY" in st.secrets:
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-else:
-    st.error("⚠️ API Key belum disetting di Secrets!")
+# ==========================================
+# 🔐 AMBIL API KEY DARI FILE RAHASIA
+# ==========================================
+GROQ_API_KEY = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY", "")
+
+if not GROQ_API_KEY:
+    st.error("⚠️ API key tidak ditemukan! Buat file `.streamlit/secrets.toml`")
     st.stop()
 
-client = None
+st.set_page_config(page_title="Djamantara AI", page_icon="🐱", layout="centered")
+
 try:
     client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
-    st.error(f"⚠️ Gagal koneksi ke Groq: {e}")
+    st.error(f"⚠️ API Groq error: {e}")
+    st.stop()
 
-st.set_page_config(page_title="Djamantara AI", page_icon="🐱", layout="centered", initial_sidebar_state="collapsed")
-
-st.markdown("""
-    <style>
-    #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden !important;}
-    .stAppDeployButton, [data-testid="stFooter"], .stDeployButton {display: none !important;}
-    .main .block-container { padding-top: 1rem; padding-bottom: 0.5rem; }
-    .cat-container img { max-width: 80px; height: auto; margin-bottom: 5px; }
-    h1 { text-align: center; margin: 0; font-size: 1.8rem; }
-    .moto { text-align: center; color: #888; font-style: italic; font-size: 0.85rem; margin-bottom: 15px; }
-    .control-panel { position: sticky; bottom: 0; background: var(--background-color); padding: 8px 0 12px 0; z-index: 999; border-top: 1px solid #444; }
-    .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; }
-    .stChatInputContainer { padding-top: 4px; }
-    </style>
-    """, unsafe_allow_html=True)
-
-def init_db():
-    conn = sqlite3.connect('djamantara_memory.db')
-    conn.cursor().execute('''CREATE TABLE IF NOT EXISTS chat_history (role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
-    conn.commit(); conn.close()
-
-def save_chat(role, content):
-    try:
-        conn = sqlite3.connect('djamantara_memory.db')
-        conn.cursor().execute("INSERT INTO chat_history (role, content) VALUES (?, ?)", (role, str(content)))
-        conn.commit(); conn.close()
-    except: pass
-
-def load_chat():
-    try:
-        conn = sqlite3.connect('djamantara_memory.db')
-        c = conn.cursor()
-        c.execute("SELECT role, content FROM chat_history ORDER BY timestamp ASC")
-        res = [{"role": r, "content": c} for r, c in c.fetchall()]
-        conn.close(); return res
-    except: return []
-
-init_db()
-
-def get_gif(path):
+# ==========================================
+# 1. LOAD GIF & CSS LAYOUT (CENTER PASTI)
+# ==========================================
+def get_gif_base64(path):
     if os.path.exists(path):
-        with open(path, "rb") as f: return base64.b64encode(f.read()).decode()
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
     return None
 
-def encode_img(file_obj):
-    file_obj.seek(0)
-    return base64.b64encode(file_obj.read()).decode()
+gif_b64 = get_gif_base64("kucing.gif")
 
-def run_async(func, *args):
+st.markdown("""
+<style>
+    /* HILANGKAN SEMUA MENU STREAMLIT */
+    header, #MainMenu, footer, .stAppDeployButton { 
+        display: none !important; 
+        visibility: hidden !important; 
+    }
+    
+    /* CENTER CONTAINER PASTI */
+    .main .block-container { 
+        padding-top: 1rem !important; 
+        padding-bottom: 2rem !important;
+        max-width: 90% !important;
+        margin: 0 auto !important;    }
+    
+    /* HEADER WRAPPER - CENTER TOTAL */
+    .header-wrapper {
+        text-align: center !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+    }
+    
+    /* GIF - CENTER & RAPAT */
+    .cat-gif { 
+        width: 110px !important; 
+        height: auto !important; 
+        display: block !important;
+        margin: 0 auto 2px auto !important;
+    }
+    
+    /* JUDUL - CENTER PASTI */
+    .app-title { 
+        font-size: 1.6rem !important; 
+        font-weight: bold !important; 
+        margin: 0 !important; 
+        padding: 0 !important; 
+        line-height: 1.1 !important;
+        text-align: center !important;
+        display: block !important;
+        width: 100% !important;
+    }
+    
+    /* SUBTITLE */
+    .app-subtitle { 
+        color: gray !important; 
+        font-style: italic !important; 
+        margin-top: 3px !important; 
+        font-size: 0.85rem !important;
+        text-align: center !important;
+        display: block !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Render Header dengan Center Paksa
+st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
+
+if gif_b64:    st.markdown(f'<img src="data:image/gif;base64,{gif_b64}" class="cat-gif" alt="kucing">', unsafe_allow_html=True)
+
+st.markdown('<h1 class="app-title">🤖 Djamantara AI</h1>', unsafe_allow_html=True)
+st.markdown('<p class="app-subtitle">Nape bei se ekatanya bray,odhiek neko santai.</p>', unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ==========================================
+# 2. FUNGSI AUTO-PLAY VOICE (TTS)
+# ==========================================
+def play_voice(text):
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import threading
-            res = [None]
-            def _run():
-                nl = asyncio.new_event_loop(); asyncio.set_event_loop(nl)
-                res[0] = nl.run_until_complete(func(*args)); nl.close()
-            threading.Thread(target=_run).start()
-            while res[0] is None: time.sleep(0.05)
-            return res[0]
-        return loop.run_until_complete(func(*args))
-    except:
-        nl = asyncio.new_event_loop(); asyncio.set_event_loop(nl)
-        r = nl.run_until_complete(func(*args)); nl.close(); return r
+        clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
 
-async def gen_voice(text):
-    clean = text.replace("*","").replace("#","").replace("`","").replace("-"," ")
-    await edge_tts.Communicate(clean, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%").save("temp_voice.mp3")
+        async def _generate():
+            comm = edge_tts.Communicate(clean_text, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
+            await comm.save("temp_voice.mp3")
 
-def play_audio(path):
-    if os.path.exists(path):
-        with open(path, "rb") as f: b64 = base64.b64encode(f.read()).decode()
-        st.markdown(f'<audio autoplay="true"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(_generate())
+        finally:
+            loop.close()
 
-gif_data = get_gif("kucing.gif")
-if gif_data:
-    st.markdown(f"""
-        <div class="cat-container" style="text-align:center;">
-            <img src="data:image/gif;base64,{gif_data}">
-            <h1>🤖 Djamantara AI</h1>
-            <p class="moto">"Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."</p>
-        </div>
-    """, unsafe_allow_html=True)
+        if os.path.exists("temp_voice.mp3"):
+            with open("temp_voice.mp3", "rb") as f:
+                b64 = base64.b64encode(f.read()).decode()
+            st.markdown(
+                f'<audio autoplay playsinline style="display:none"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>',
+                unsafe_allow_html=True
+            )
+    except Exception as e:
+        st.warning(f"⚠️ Gagal generate suara: {e}")
 
+# ==========================================
+# 3. LOGIKA CHAT UTAMA
+# ==========================================
 if "messages" not in st.session_state:
-    st.session_state.messages = load_chat()
+    st.session_state.messages = []
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-with st.container():
-    st.markdown('<div class="control-panel">', unsafe_allow_html=True)
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        upl = st.file_uploader("", type=["jpg","jpeg","png"], label_visibility="collapsed", help="Upload foto untuk dianalisa")
-        if upl:
-            st.session_state.current_image = upl
-            st.success("✅ Foto siap dianalisa!", icon="📷")
-            st.image(upl, caption="Preview", use_container_width=True)
-            if st.button("Kirim Gambar"):
-                st.session_state.messages.append({"role": "user", "content": "Gambar"})
-                save_chat("user", "Gambar")
-                with st.chat_message("user"): st.markdown("Gambar")
-                with st.chat_message("assistant"): st.image(upl, caption="Gambar", use_container_width=True)
-        elif "current_image" in st.session_state:
-            st.success("✅ Foto tersimpan di memori!", icon="💾")
-            st.image(st.session_state.current_image, caption="Preview", use_container_width=True)
-            upl = st.session_state.current_image
-    with c2:
-        if st.button("🗑️ Hapus", use_container_width=True, type="secondary"):
-            conn = sqlite3.connect('djamantara_memory.db')
-            conn.cursor().execute("DELETE FROM chat_history"); conn.commit(); conn.close()
-            st.session_state.messages = []
-            if "current_image" in st.session_state: del st.session_state.current_image
-            st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
-    if not client: st.error("⚠️ API Key error!"); st.stop()
-
+if prompt := st.chat_input("Ketik pesan..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    save_chat("user", prompt)
-    with st.chat_message("user"): st.markdown(prompt)
-
+    with st.chat_message("user"):
+        st.markdown(prompt)
     with st.chat_message("assistant"):
-        with st.spinner("Si Kocheng lagi ngintip..."):
+        with st.spinner("Djamantara lagi ngomong..."):
             try:
-                img = st.session_state.get("current_image")
+                context = st.session_state.messages[-5:]
+                system_prompt = {"role": "system", "content": "Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia ramah agak nyeleneh, Jangan terlalu panjang."}
 
-                if img:
-                    b64 = encode_img(img)
-                    # ✅ MODEL VISION TERBARU GROQ
-                    resp = client.chat.completions.create(
-                        model="meta-llama/llama-4-scout-17b-16e-instruct",
-                        messages=[{"role": "user", "content": [
-                            {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura. Panggil 'Bos'. Analisa gambar ini: {prompt}"},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                        ]}],
-                        temperature=0.7,
-                        max_completion_tokens=1024
-                    )
-                    full = resp.choices[0].message.content
-                else:
-                    ctx = st.session_state.messages[-5:]
-                    resp = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=[{"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Bahasa santai Indonesia-Madura."}, *ctx]
-                    )
-                    full = resp.choices[0].message.content
+                response = client.chat.completions.create(
+                    messages=[system_prompt] + context,
+                    model="llama-3.3-70b-versatile",
+                    temperature=0.7
+                )
 
-                ph = st.empty(); txt = ""
-                for c in full:
-                    txt += c; ph.markdown(txt + "▌"); time.sleep(0.01)
-                ph.markdown(full)
+                full_response = response.choices[0].message.content
+                st.markdown(full_response)
 
-                run_async(gen_voice, full)
-                play_audio("temp_voice.mp3")
+                # 🔊 Panggil suara otomatis
+                play_voice(full_response)
 
-                st.session_state.messages.append({"role": "assistant", "content": full})
-                save_chat("assistant", full)
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+
             except Exception as e:
-                st.error(f"⚠️ Error: {str(e)}")
-
-if os.path.exists("temp_voice.mp3"):
-    try: time.sleep(3); os.remove("temp_voice.mp3")
-    except: pass
+                st.error(f"Duh Bos, sistem macet: {e}")
