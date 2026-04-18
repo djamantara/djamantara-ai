@@ -24,7 +24,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 1. LOAD GIF & CSS LAYOUT (CENTER PASTI)
+# 1. LOAD GIF & CSS LAYOUT
 # ==========================================
 def get_gif_base64(path):
     if os.path.exists(path):
@@ -89,26 +89,26 @@ if gif_b64:
 
 st.markdown('<h1 class="app-title">🤖 Djamantara AI</h1>', unsafe_allow_html=True)
 st.markdown('<p class="app-subtitle">Nape bei se ekatanya bray,odhiek neko santai.</p>', unsafe_allow_html=True)
-
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 2. FUNGSI AUTO-PLAY VOICE (TTS)
+# 2. FUNGSI TTS (SIMPEL & ANTI ERROR)
 # ==========================================
+async def _tts_generate(text):
+    """Fungsi internal async untuk generate suara"""
+    clean = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")    comm = edge_tts.Communicate(clean, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
+    await comm.save("temp_voice.mp3")
+
 def play_voice(text):
-    try:        clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
-
-        async def _generate():
-            comm = edge_tts.Communicate(clean_text, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
-            await comm.save("temp_voice.mp3")
-
+    """Fungsi publik untuk play voice - simpel tanpa nested try"""
+    try:
+        # Jalankan async function di loop baru
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_generate())
-        finally:
-            loop.close()
-
+        loop.run_until_complete(_tts_generate(text))
+        loop.close()
+        
+        # Putar audio jika file ada
         if os.path.exists("temp_voice.mp3"):
             with open("temp_voice.mp3", "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
@@ -120,7 +120,7 @@ def play_voice(text):
         st.warning(f"⚠️ Gagal generate suara: {e}")
 
 # ==========================================
-# 3. LOGIKA CHAT UTAMA (ANTI RATE LIMIT)
+# 3. LOGIKA CHAT UTAMA
 # ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -137,23 +137,23 @@ if prompt := st.chat_input("Ketik pesan..."):
     with st.chat_message("assistant"):
         with st.spinner("Djamantara lagi ngomong..."):
             try:
-                context = st.session_state.messages[-3:]  # Hemat token: cuma 3 pesan terakhir
+                context = st.session_state.messages[-3:]
                 system_prompt = {"role": "system", "content": "Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia ramah agak nyeleneh, Jangan terlalu panjang."}
 
-                # 🔄 Coba model utama dulu
+                # Coba model utama
                 try:
                     response = client.chat.completions.create(
                         messages=[system_prompt] + context,
                         model="llama-3.3-70b-versatile",
-                        temperature=0.7,                        max_tokens=300  # ✅ Hemat token!
+                        temperature=0.7,                        max_tokens=300
                     )
                 except Exception as e:
-                    # ⚠️ Kalau rate limit, fallback ke model ringan
+                    # Fallback kalau rate limit
                     if "rate_limit" in str(e).lower() or "429" in str(e):
                         st.warning("⚠️ Kuota model utama habis, pakai mode hemat...")
                         response = client.chat.completions.create(
                             messages=[system_prompt] + context,
-                            model="mixtral-8x7b-32768",  # ✅ Model cadangan (lebih hemat)
+                            model="mixtral-8x7b-32768",
                             temperature=0.7,
                             max_tokens=250
                         )
