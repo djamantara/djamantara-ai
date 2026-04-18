@@ -5,305 +5,234 @@ import asyncio
 import base64
 import os
 import sqlite3
-from PIL import Image
-import io
-from groq import Groq
+import nest_asyncio
+
+# Wajib agar asyncio berjalan lancar di Streamlit
+nest_asyncio.apply()
 
 # ==========================================
-# --- KONFIGURASI API AMAN (SECRETS) ---
+# --- KONFIGURASI PAGE & API ---
 # ==========================================
+st.set_page_config(page_title="Djamantara AI", page_icon="🐱", layout="centered", initial_sidebar_state="collapsed")
+
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
-    st.error("⚠️ API Key 'GROQ_API_KEY' tidak ditemukan! Cek Settings > Secrets.")
-    st.stop()
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+    if not GROQ_API_KEY:
+        st.error("⚠️ API Key belum disetting di Secrets atau Environment!")
+        st.stop()
 
-# Setup Client
-client = None
 try:
     client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
-    st.error(f"⚠️ Waduh Bos, Groq-nya bermasalah: {e}")
+    st.error(f"⚠️ Gagal koneksi ke Groq: {e}")
+    st.stop()
 
 # ==========================================
-# --- SETTING LAYAR MOBILE RESPONSIF ---
-# ==========================================
-st.set_page_config(
-    page_title="Djamantara AI", 
-    page_icon="🐱", 
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
-
-# ==========================================
-# --- CSS INJECTION (HIDE BRANDING + RESPONSIVE) ---
+#  CSS - DESAIN DARK MINIMALIS
 # ==========================================
 st.markdown("""
     <style>
-    /* HIDE STREAMLIT BRANDING */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden !important;}
-    .stAppDeployButton {visibility: hidden !important;}
-    [data-testid="stFooter"] {visibility: hidden !important; display: none !important;}
-    .stDeployButton {display: none !important;}
+    #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden !important;}
+    .stAppDeployButton, [data-testid="stFooter"], .stDeployButton {display: none !important;}
+    .main .block-container { padding-top: 1.5rem; padding-bottom: 5rem; }
     
-    /* LAYOUT */
-    .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 5rem;
-        padding-left: 1rem;
-        padding-right: 1rem;
-    }
-    .cat-container img {
-        max-width: 100px;
-        height: auto;
-    }
-    .moto-text {
-        font-size: 0.9rem !important;
-        line-height: 1.4;
-    }
-    .stChatInputContainer {
-        padding-bottom: 20px;
-    }
+    .cat-container img { max-width: 80px; height: auto; margin-bottom: 10px; }
+    h1 { text-align: center; margin: 0; font-size: 1.8rem; color: #fff; }
+    .moto { text-align: center; color: #888; font-style: italic; font-size: 0.85rem; margin-bottom: 20px; line-height: 1.6; }
     
-    /* MOBILE */
-    @media only screen and (max-width: 600px) {
-        h1 { font-size: 1.8rem !important; }
-        .moto-text { font-size: 0.8rem !important; }
+    .control-panel { position: fixed; bottom: 0; left: 0; right: 0; background: #0e1117; padding: 10px 15px; z-index: 999; border-top: 1px solid #333; }
+    .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; }
+    
+    .img-preview-box { 
+        position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); 
+        background: #1e232e; padding: 5px 10px; border-radius: 8px; border: 1px solid #444;         z-index: 998; font-size: 0.8rem; color: #aaa; 
     }
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# --- 1. SISTEM INGATAN (DATABASE) ---
+# --- DATABASE ---
 # ==========================================
 def init_db():
-    conn = sqlite3.connect('djamantara_memory.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS chat_history 
-                 (role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    conn = sqlite3.connect('djamantara_memory.db', check_same_thread=False)
+    conn.execute('''CREATE TABLE IF NOT EXISTS chat_history 
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                     role TEXT, 
+                     content TEXT, 
+                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     conn.commit()
     conn.close()
 
 def save_chat(role, content):
     try:
-        conn = sqlite3.connect('djamantara_memory.db')
-        c = conn.cursor()
-        c.execute("INSERT INTO chat_history (role, content) VALUES (?, ?)", (role, str(content)))
+        conn = sqlite3.connect('djamantara_memory.db', check_same_thread=False)
+        conn.execute("INSERT INTO chat_history (role, content) VALUES (?, ?)", (role, str(content)))
         conn.commit()
         conn.close()
-    except: pass
+    except Exception:
+        pass
 
 def load_chat():
     try:
-        conn = sqlite3.connect('djamantara_memory.db')
-        c = conn.cursor()
-        c.execute("SELECT role, content FROM chat_history ORDER BY timestamp ASC")
-        history = c.fetchall()
+        conn = sqlite3.connect('djamantara_memory.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT role, content FROM chat_history ORDER BY timestamp ASC")
+        results = [{"role": row[0], "content": row[1]} for row in cursor.fetchall()]
         conn.close()
-        return [{"role": r, "content": c} for r, c in history]
-    except: return []
+        return results
+    except Exception:
+        return []
 
 init_db()
 
 # ==========================================
-# --- 2. FUNGSI PENDUKUNG ---
+# --- HELPER FUNCTIONS ---
 # ==========================================
-def get_local_gif(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as file_:
-            contents = file_.read()
-            data_url = base64.b64encode(contents).decode("utf-8")
-        return data_url
+def get_gif(path):
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
     return None
 
-def encode_image(uploaded_file):
-    uploaded_file.seek(0)
-    return base64.b64encode(uploaded_file.read()).decode('utf-8')
+def encode_img(file_obj):    file_obj.seek(0)
+    return base64.b64encode(file_obj.read()).decode()
 
-def run_async_safe(coro_func, *args):
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import threading
-            result = None
-            def _run():
-                nonlocal result
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                result = new_loop.run_until_complete(coro_func(*args))
-                new_loop.close()
-            thread = threading.Thread(target=_run)
-            thread.start()
-            thread.join()
-            return result
-        else:
-            return loop.run_until_complete(coro_func(*args))
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(coro_func(*args))
-        loop.close()
-        return result
-
-async def generate_voice(text):
-    clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
-    communicate = edge_tts.Communicate(clean_text, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
+async def gen_voice(text):
+    clean = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ").strip()
+    if not clean:
+        return
+    communicate = edge_tts.Communicate(clean, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
     await communicate.save("temp_voice.mp3")
 
-def autoplay_audio(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            data = f.read()
-            b64 = base64.b64encode(data).decode()
-            md = f'<audio autoplay="true"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
-            st.markdown(md, unsafe_allow_html=True)
+def play_audio(path):
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        st.markdown(f'''
+            <audio autoplay="true" controls="false">
+                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+            </audio>
+        ''', unsafe_allow_html=True)
 
 # ==========================================
-# --- 3. TAMPILAN UTAMA ---
+# --- UI HEADER ---
 # ==========================================
-gif_data = get_local_gif("kucing.gif")
-
+gif_data = get_gif("kucing.gif")
+st.markdown('<div class="cat-container" style="text-align:center;">', unsafe_allow_html=True)
 if gif_data:
-    st.markdown(
-        f"""
-        <div style="text-align: center; margin-top: -30px;" class="cat-container">
-            <img src="data:image/gif;base64,{gif_data}" style="z-index: 1;">
-            <h1 style="margin: 0; padding: 0;">🤖 Djamantara AI</h1>
-            <p class="moto-text" style="color: gray; font-style: italic;">
-                "Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."
-            </p>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
+    st.markdown(f'<img src="data:image/gif;base64,{gif_data}">', unsafe_allow_html=True)
+else:
+    st.markdown('<div style="font-size: 3rem;">🐱</div>', unsafe_allow_html=True)
+st.markdown('<h1>🤖 Djamantara AI</h1>', unsafe_allow_html=True)
+st.markdown('''<p class="moto">"Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."</p>''', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('<hr style="border: 1px solid #333; margin: 15px 0;">', unsafe_allow_html=True)
 
 # ==========================================
-# --- SIDEBAR (UPLOAD + HAPUS INGATAN) ---
-# ==========================================
-with st.sidebar:
-    st.title("👁️ Mata Kocheng")
-    st.markdown("### Upload Foto")
-    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"], help="Upload foto untuk dianalisa oleh Djamantara")
-    
-    if uploaded_file:
-        st.session_state.current_image = uploaded_file
-        st.image(uploaded_file, caption="Foto Siap!", use_container_width=True)
-        st.success("✅ Foto berhasil diupload!")
-    elif "current_image" in st.session_state:
-        st.image(st.session_state.current_image, caption="Foto Siap!", use_container_width=True)
-        uploaded_file = st.session_state.current_image
-        st.success("✅ Foto tersimpan!")
-    
-    st.divider()
-    
-    # ✅ TOMBOL HAPUS INGATAN (DENGAN KONFIRMASI)
-    st.markdown("### ⚙️ Pengaturan")
-    if st.button("🗑️ Hapus Ingatan", use_container_width=True, help="Hapus semua riwayat chat"):
-        st.session_state.confirm_delete = True
-
-    if st.session_state.get("confirm_delete", False):
-        st.warning("Yakin ingin menghapus semua riwayat? Data tidak bisa dikembalikan.")
-        col1, col2 = st.columns(2)
-        if col1.button("✅ Ya, Hapus", use_container_width=True):
-            conn = sqlite3.connect('djamantara_memory.db')
-            conn.cursor().execute("DELETE FROM chat_history")
-            conn.commit()
-            conn.close()
-            
-            st.session_state.messages = []
-            if "current_image" in st.session_state:
-                del st.session_state.current_image
-            st.session_state.confirm_delete = False  # Reset flag
-            st.success("✅ Ingatan berhasil dihapus!")
-            st.rerun()
-            
-        if col2.button("❌ Batal", use_container_width=True):
-            st.session_state.confirm_delete = False
-            st.rerun()
-    
-    st.markdown("---")
-    st.markdown("*Djamantara AI - Kocheng Pinter*")
-
-# ==========================================
-# --- CHAT HISTORY ---
+# --- SESSION STATE & UPLOAD ---
 # ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
+if "current_image" not in st.session_state:
+    st.session_state.current_image = None
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# Upload Gambar
+uploaded_file = st.file_uploader("", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+if uploaded_file:
+    st.session_state.current_image = uploaded_file
+
+# Preview Gambar Terlampir
+if st.session_state.current_image:
+    st.markdown('''        <div class="img-preview-box">
+            📷 Foto terlampir | <span style="color:#ff6b6b; cursor:pointer; text-decoration:underline;" onclick="document.querySelector('[type=file]').value=''; window.location.reload();">Hapus</span>
+        </div>
+    ''', unsafe_allow_html=True)
+
+# Tampilkan Riwayat Chat
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
 # ==========================================
-# --- 4. LOGIKA PERCAKAPAN ---
+# --- LOGIKA CHAT & AI ---
 # ==========================================
 if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     if not client:
-        st.error("⚠️ Koneksi ke Groq belum siap. Cek API Key di secrets.")
-        st.stop()
+        st.error("⚠️ API Key error!"); st.stop()
 
     st.session_state.messages.append({"role": "user", "content": prompt})
     save_chat("user", prompt)
-    
+
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                # ✅ AMBIL GAMBAR DARI SESSION STATE (LEBIH STABIL)
-                image_to_use = st.session_state.get("current_image")
-                
-                if image_to_use:
-                    base64_image = encode_image(image_to_use)
-                    response = client.chat.completions.create(
-                        messages=[
-                            {
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
-                                    {
-                                        "type": "image_url",
-                                        "image_url": { "url": f"data:image/jpeg;base64,{base64_image}" },
-                                    },
-                                ],
-                            }
-                        ],
-                        model="meta-llama/llama-4-scout-17b-16e-instruct",
-                    )
-                    full_response = response.choices[0].message.content
-                else:
-                    context = st.session_state.messages[-5:]
-                    chat_completion = client.chat.completions.create(
-                        messages=[
-                            {"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Gunakan bahasa santai Indonesia-Madura."},
-                            *context
-                        ],
-                        model="llama-3.3-70b-versatile",
-                    )
-                    full_response = chat_completion.choices[0].message.content
-                
-                placeholder = st.empty()
-                displayed_text = ""
-                for char in full_response:
-                    displayed_text += char
-                    placeholder.markdown(displayed_text + "▌")
-                    time.sleep(0.005)
-                placeholder.markdown(full_response)
+                img = st.session_state.get("current_image")
+                full_response = ""
 
-                run_async_safe(generate_voice, full_response)
-                autoplay_audio("temp_voice.mp3")
+                if img:
+                    # Analisis Gambar + Teks
+                    b64 = encode_img(img)
+                    resp = client.chat.completions.create(
+                        model="llama-3.2-11b-vision-preview",
+                        messages=[{
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura. Panggil 'Bos'. Analisa gambar ini: {prompt}"},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                            ]
+                        }],
+                        temperature=0.7,
+                        max_tokens=1024
+                    )
+                    full_response = resp.choices[0].message.content
+                else:
+                    # Chat Teks Saja
+                    ctx = st.session_state.messages[-6:]
+                    resp = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",                        messages=[
+                            {"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Bahasa santai Indonesia-Madura."}
+                        ] + ctx,
+                        temperature=0.7,
+                        max_tokens=1024
+                    )
+                    full_response = resp.choices[0].message.content
+
+                # Efek Ngetik
+                ph = st.empty()
+                txt = ""
+                for char in full_response:
+                    txt += char
+                    ph.markdown(txt + "▌")
+                    time.sleep(0.015)
+                ph.markdown(full_response)
+
+                # Generate & Putar Suara
+                try:
+                    asyncio.run(gen_voice(full_response))
+                    play_audio("temp_voice.mp3")
+                except Exception:
+                    pass
+
+                # Simpan ke DB & Session
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
                 save_chat("assistant", full_response)
-                
-            except Exception as e:
-                st.error(f"Duh Bos, sistem macet: {str(e)}")
 
-# Cleanup
+                # Reset gambar setelah terkirim
+                if st.session_state.current_image:
+                    st.session_state.current_image = None
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"⚠️ Error: {str(e)}")
+
+# Hapus file sementara
 if os.path.exists("temp_voice.mp3"):
-    try: 
-        time.sleep(3)
+    try:
         os.remove("temp_voice.mp3")
-    except: pass
+    except Exception:
+        pass
