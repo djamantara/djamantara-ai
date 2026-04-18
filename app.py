@@ -99,7 +99,7 @@ st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
 if gif_b64:    st.markdown(f'<img src="data:image/gif;base64,{gif_b64}" class="cat-gif" alt="kucing">', unsafe_allow_html=True)
 
 st.markdown('<h1 class="app-title">🤖 Djamantara AI</h1>', unsafe_allow_html=True)
-st.markdown('<p class="app-subtitle">Halo Bos! Ngobrol santai aja.</p>', unsafe_allow_html=True)
+st.markdown('<p class="app-subtitle">Nape bei se ekatanya bray,odhiek neko santai.</p>', unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -149,7 +149,7 @@ if prompt := st.chat_input("Ketik pesan..."):
         with st.spinner("Djamantara lagi ngomong..."):
             try:
                 context = st.session_state.messages[-5:]
-                system_prompt = {"role": "system", "content": "Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil user 'Bos'. Jangan terlalu panjang."}
+                system_prompt = {"role": "system", "content": "Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia ramah agak nyeleneh. Panggil user 'Cok'. Jangan terlalu panjang."}
 
                 response = client.chat.completions.create(
                     messages=[system_prompt] + context,
