@@ -5,70 +5,56 @@ import asyncio
 import base64
 import os
 import sqlite3
-from PIL import Image
-import io
+import threading
 from groq import Groq
 
 # --- KONFIGURASI API ---
-GROQ_API_KEY = "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"
+# 💡 REKOMENDASI: Gunakan st.secrets["GROQ_API_KEY"] atau Environment Variable
+# Jangan hardcode API key di production!
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", st.secrets.get("GROQ_API_KEY", "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"))
 
 # --- SETTING LAYAR MOBILE RESPONSIF ---
 st.set_page_config(
     page_title="Djamantara AI", 
     page_icon="🐱", 
-    layout="centered", # Tetap centered agar fokus di mode potret
-    initial_sidebar_state="collapsed" # Sidebar tertutup otomatis di hape biar gak sempit
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
-# --- CSS INJECTION (Biar Ganteng di Hape) ---
+# --- CSS INJECTION ---
 st.markdown("""
     <style>
-    /* Mengatur padding utama agar tidak mepet di layar hape */
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 5rem;
         padding-left: 1rem;
         padding-right: 1rem;
     }
-    
-    /* Responsif Animasi Kucing */
     .cat-container img {
         max-width: 100px;
         height: auto;
     }
-    
-    /* Responsive Text Moto */
     .moto-text {
         font-size: 0.9rem !important;
         line-height: 1.4;
     }
-
-    /* Memperbaiki tampilan Chat Input di Mobile */
     .stChatInputContainer {
         padding-bottom: 20px;
     }
-
-    /* Sembunyikan footer Streamlit biar kelihatan profesional */
     footer {visibility: hidden;}
     #MainMenu {visibility: hidden;}
-    
-    /* Paksa mode potret agar elemen tetap di tengah */
     @media only screen and (max-width: 600px) {
-        h1 {
-            font-size: 1.8rem !important;
-        }
-        .moto-text {
-            font-size: 0.8rem !important;
-        }
+        h1 { font-size: 1.8rem !important; }
+        .moto-text { font-size: 0.8rem !important; }
     }
-    </style>
-    """, unsafe_allow_html=True)
+    </style>    """, unsafe_allow_html=True)
 
 # Setup Klien API
 try:
     client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
     st.error(f"⚠️ Waduh Bos, Groq-nya bermasalah: {e}")
+    st.stop()
 
 # ==========================================
 # --- 1. SISTEM INGATAN (DATABASE) ---
@@ -77,28 +63,28 @@ def init_db():
     conn = sqlite3.connect('djamantara_memory.db')
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS chat_history 
-                 (role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     conn.commit()
     conn.close()
 
 def save_chat(role, content):
+    conn = sqlite3.connect('djamantara_memory.db')
     try:
-        conn = sqlite3.connect('djamantara_memory.db')
         c = conn.cursor()
         c.execute("INSERT INTO chat_history (role, content) VALUES (?, ?)", (role, str(content)))
         conn.commit()
+    finally:
         conn.close()
-    except: pass
 
-def load_chat():
+def load_chat(limit=50):
+    conn = sqlite3.connect('djamantara_memory.db')
     try:
-        conn = sqlite3.connect('djamantara_memory.db')
         c = conn.cursor()
-        c.execute("SELECT role, content FROM chat_history ORDER BY timestamp ASC")
+        c.execute("SELECT role, content FROM chat_history ORDER BY timestamp ASC LIMIT ?", (limit,))
         history = c.fetchall()
-        conn.close()
         return [{"role": r, "content": c} for r, c in history]
-    except: return []
+    finally:
+        conn.close()
 
 init_db()
 
@@ -107,40 +93,25 @@ init_db()
 # ==========================================
 def get_local_gif(file_path):
     if os.path.exists(file_path):
-        with open(file_path, "rb") as file_:
-            contents = file_.read()
-            data_url = base64.b64encode(contents).decode("utf-8")
-        return data_url
+        with open(file_path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
     return None
-
-def encode_image(uploaded_file):
-    uploaded_file.seek(0)
-    return base64.b64encode(uploaded_file.read()).decode('utf-8')
+def encode_image(file_obj):
+    file_obj.seek(0)
+    # Gunakan MIME type asli dari file uploader (jpg/png)
+    mime_type = file_obj.type or "image/jpeg"
+    return base64.b64encode(file_obj.read()).decode('utf-8'), mime_type
 
 def run_async_safe(coro_func, *args):
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import threading
-            result = None
-            def _run():
-                nonlocal result
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                result = new_loop.run_until_complete(coro_func(*args))
-                new_loop.close()
-            thread = threading.Thread(target=_run)
-            thread.start()
-            thread.join()
-            return result
-        else:
-            return loop.run_until_complete(coro_func(*args))
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(coro_func(*args))
-        loop.close()
-        return result
+    """Menjalankan fungsi async di background thread agar tidak memblokir UI Streamlit"""
+    def _run():
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        try:
+            new_loop.run_until_complete(coro_func(*args))
+        finally:
+            new_loop.close()
+    threading.Thread(target=_run, daemon=True).start()
 
 async def generate_voice(text):
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
@@ -150,10 +121,9 @@ async def generate_voice(text):
 def autoplay_audio(file_path):
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
-            data = f.read()
-            b64 = base64.b64encode(data).decode()
-            md = f'<audio autoplay="true"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
-            st.markdown(md, unsafe_allow_html=True)
+            b64 = base64.b64encode(f.read()).decode()
+            # playsinline & controls ditambahkan agar kompatibel dengan browser mobile modern
+            st.markdown(f'<audio autoplay playsinline controls style="display:none;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
 
 # ==========================================
 # --- 3. TAMPILAN UTAMA ---
@@ -175,24 +145,22 @@ if gif_data:
     )
 
 with st.sidebar:
-    st.title("👁️ Mata Kocheng")
-    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"])
+    st.title("👁️ Mata Kocheng")    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"])
+    
     if uploaded_file:
         st.session_state.current_image = uploaded_file
         st.image(uploaded_file, caption="Foto Siap!", use_container_width=True)
     elif "current_image" in st.session_state:
         st.image(st.session_state.current_image, caption="Foto Siap!", use_container_width=True)
-        uploaded_file = st.session_state.current_image
     
     st.divider()
-    if st.button("Hapus Ingatan"):
+    if st.button("🗑️ Hapus Ingatan"):
         conn = sqlite3.connect('djamantara_memory.db')
         conn.cursor().execute("DELETE FROM chat_history")
         conn.commit()
         conn.close()
         st.session_state.messages = []
-        if "current_image" in st.session_state:
-            del st.session_state.current_image
+        st.session_state.pop("current_image", None)
         st.rerun()
 
 if "messages" not in st.session_state:
@@ -215,39 +183,35 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                image_to_use = uploaded_file if uploaded_file is not None else st.session_state.get("current_image")
+                image_obj = st.session_state.get("current_image")
                 
-                if image_to_use:
-                    base64_image = encode_image(image_to_use)
+                if image_obj:
+                    base64_image, mime_type = encode_image(image_obj)
                     response = client.chat.completions.create(
                         messages=[
                             {
                                 "role": "user",
                                 "content": [
                                     {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
-                                    {
-                                        "type": "image_url",
-                                        "image_url": {
-                                            "url": f"data:image/jpeg;base64,{base64_image}",
-                                        },
-                                    },
-                                ],
-                            }
+                                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
+                                ],                            }
                         ],
-                        model="meta-llama/llama-4-scout-17b-16e-instruct",
+                        model="llama-3.2-90b-vision-preview", # Model vision Groq yang stabil
+                        temperature=0.7
                     )
                     full_response = response.choices[0].message.content
                 else:
                     context = st.session_state.messages[-5:]
-                    chat_completion = client.chat.completions.create(
-                        messages=[
-                            {"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Gunakan bahasa santai Indonesia-Madura."},
-                            *context
-                        ],
-              w          model="llama-3.3-70b-versatile",
+                    system_msg = {"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Gunakan bahasa santai Indonesia-Madura. Jangan terlalu panjang."}
+                    
+                    response = client.chat.completions.create(
+                        messages=[system_msg] + context,
+                        model="llama-3.3-70b-versatile",
+                        temperature=0.7
                     )
-                    full_response = chat_completion.choices[0].message.content
+                    full_response = response.choices[0].message.content
                 
+                # Efek mengetik
                 placeholder = st.empty()
                 displayed_text = ""
                 for char in full_response:
@@ -256,17 +220,15 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                     time.sleep(0.005)
                 placeholder.markdown(full_response)
 
-                run_async_safe(generate_voice, full_response)
-                autoplay_audio("temp_voice.mp3")
+                # Generate & putar suara di background
+                if full_response.strip():
+                    run_async_safe(generate_voice, full_response)
+                    # Beri jeda singkat agar file audio sempat terbuat sebelum diputar
+                    time.sleep(0.8)
+                    autoplay_audio("temp_voice.mp3")
+                    
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
                 save_chat("assistant", full_response)
                 
             except Exception as e:
                 st.error(f"Duh Bos, sistem macet: {str(e)}")
-
-if os.path.exists("temp_voice.mp3"):
-    try: 
-        time.sleep(3)
-        os.remove("temp_voice.mp3")
-    except:
-        pass
