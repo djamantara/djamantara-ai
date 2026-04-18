@@ -18,18 +18,26 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# FUNGSI AUTO-PLAY VOICE (TTS)
+# 1. TAMPILAN GIF & HEADER (DITENGAH)
+# ==========================================
+col_left, col_center, col_right = st.columns([1, 2, 1])
+with col_center:
+    if os.path.exists("kucing.gif"):
+        st.image("kucing.gif", width=140)
+    st.title("🤖 Djamantara AI")
+    st.markdown("<p style='color: gray; font-style: italic;'>Halo Bos! Ngobrol santai aja.</p>", unsafe_allow_html=True)
+
+# ==========================================
+# 2. FUNGSI AUTO-PLAY VOICE (TTS)
 # ==========================================
 def play_voice(text):
     try:
-        # Bersihkan teks dari simbol markdown agar suara natural
         clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
 
         async def _generate():
             comm = edge_tts.Communicate(clean_text, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
             await comm.save("temp_voice.mp3")
 
-        # Jalankan di event loop baru agar tidak ganggu Streamlit
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -37,25 +45,21 @@ def play_voice(text):
         finally:
             loop.close()
 
-        # Putar otomatis jika file berhasil dibuat
         if os.path.exists("temp_voice.mp3"):
             with open("temp_voice.mp3", "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
             st.markdown(
-                f'<audio autoplay playsinline style="display:none"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>',
+                f'<audio autoplay playsinline style="display:none"><source src="audio/mp3;base64,{b64}" type="audio/mp3"></audio>',
                 unsafe_allow_html=True
             )
     except Exception as e:
         st.warning(f"⚠️ Gagal generate suara: {e}")
 
 # ==========================================
-# LOGIKA CHAT UTAMA
+# 3. LOGIKA CHAT UTAMA
 # ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = []
-
-st.title("🤖 Djamantara AI")
-st.markdown("Halo Bos! Ngobrol santai aja. Djamantara siap bantu.")
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -81,7 +85,7 @@ if prompt := st.chat_input("Ketik pesan..."):
                 full_response = response.choices[0].message.content
                 st.markdown(full_response)
 
-                # 🔊 Panggil fungsi suara di sini
+                # 🔊 Panggil suara otomatis
                 play_voice(full_response)
 
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
