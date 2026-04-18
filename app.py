@@ -18,15 +18,35 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 1. TAMPILAN GIF & HEADER (DITENGAH)
+# 1. LOAD GIF KE BASE64 (BIAR PASTI ANIMASI)
 # ==========================================
-col_left, col_center, col_right = st.columns([1, 2, 1])
-with col_center:
-    if os.path.exists("kucing.gif"):
-        st.image("kucing.gif", width=140)
-    st.title("🤖 Djamantara AI")
-    st.markdown("<p style='color: gray; font-style: italic;'>Halo Bos! Ngobrol santai aja.</p>", unsafe_allow_html=True)
+def get_gif_base64(path):
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+    return None
 
+gif_b64 = get_gif_base64("kucing.gif")
+
+# CSS & HTML UNTUK POSISI TENGAH PERSIS
+st.markdown("""
+<style>
+    .header-box { text-align: center; margin-top: 10px; }
+    .cat-gif { width: 130px; height: auto; display: block; margin: 0 auto 8px auto; }
+    .app-title { font-size: 1.8rem; font-weight: bold; margin: 0; padding: 0; }
+    .app-subtitle { color: gray; font-style: italic; margin-top: 5px; font-size: 0.95rem; }
+    footer, #MainMenu { visibility: hidden; }
+</style>
+""", unsafe_allow_html=True)
+
+# Render Header
+with st.container():
+    st.markdown('<div class="header-box">', unsafe_allow_html=True)
+    if gif_b64:
+        st.markdown(f'<img src="data:image/gif;base64,{gif_b64}" class="cat-gif">', unsafe_allow_html=True)
+    st.markdown('<h1 class="app-title">🤖 Djamantara AI</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="app-subtitle">Halo Bos! Ngobrol santai aja.</p>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 # ==========================================
 # 2. FUNGSI AUTO-PLAY VOICE (TTS)
 # ==========================================
@@ -49,7 +69,7 @@ def play_voice(text):
             with open("temp_voice.mp3", "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
             st.markdown(
-                f'<audio autoplay playsinline style="display:none"><source src="audio/mp3;base64,{b64}" type="audio/mp3"></audio>',
+                f'<audio autoplay playsinline style="display:none"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>',
                 unsafe_allow_html=True
             )
     except Exception as e:
@@ -76,8 +96,7 @@ if prompt := st.chat_input("Ketik pesan..."):
                 context = st.session_state.messages[-5:]
                 system_prompt = {"role": "system", "content": "Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil user 'Bos'. Jangan terlalu panjang."}
 
-                response = client.chat.completions.create(
-                    messages=[system_prompt] + context,
+                response = client.chat.completions.create(                    messages=[system_prompt] + context,
                     model="llama-3.3-70b-versatile",
                     temperature=0.7
                 )
