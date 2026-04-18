@@ -12,31 +12,43 @@ from groq import Groq
 # ==========================================
 # --- KONFIGURASI API AMAN (SECRETS) ---
 # ==========================================
-# Mengambil API Key dari secrets, tidak hardcoded.
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
     st.error("⚠️ API Key 'GROQ_API_KEY' tidak ditemukan! Cek Settings > Secrets.")
     st.stop()
 
-# Setup Client dengan proteksi error
+# Setup Client
 client = None
 try:
     client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
     st.error(f"⚠️ Waduh Bos, Groq-nya bermasalah: {e}")
 
+# ==========================================
 # --- SETTING LAYAR MOBILE RESPONSIF ---
+# ==========================================
 st.set_page_config(
     page_title="Djamantara AI", 
-    page_icon="", 
+    page_icon="🐱", 
     layout="centered",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"  # ✅ SIDEBAR TERBUKA OTOMATIS
 )
 
-# --- CSS INJECTION ---
+# ==========================================
+# --- CSS INJECTION (HIDE BRANDING + RESPONSIVE) ---
+# ==========================================
 st.markdown("""
     <style>
+    /* HIDE STREAMLIT BRANDING */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden !important;}
+    .stAppDeployButton {visibility: hidden !important;}
+    [data-testid="stFooter"] {visibility: hidden !important; display: none !important;}
+    .stDeployButton {display: none !important;}
+    
+    /* LAYOUT */
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 5rem;
@@ -54,8 +66,8 @@ st.markdown("""
     .stChatInputContainer {
         padding-bottom: 20px;
     }
-    footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
+    
+    /* MOBILE */
     @media only screen and (max-width: 600px) {
         h1 { font-size: 1.8rem !important; }
         .moto-text { font-size: 0.8rem !important; }
@@ -167,18 +179,28 @@ if gif_data:
         unsafe_allow_html=True
     )
 
+# ==========================================
+# --- SIDEBAR (TERBUKA OTOMATIS) ---
+# ==========================================
 with st.sidebar:
     st.title("👁️ Mata Kocheng")
-    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"])
+    st.markdown("### Upload Foto")
+    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"], help="Upload foto untuk dianalisa oleh Djamantara")
+    
     if uploaded_file:
         st.session_state.current_image = uploaded_file
         st.image(uploaded_file, caption="Foto Siap!", use_container_width=True)
+        st.success("✅ Foto berhasil diupload!")
     elif "current_image" in st.session_state:
         st.image(st.session_state.current_image, caption="Foto Siap!", use_container_width=True)
         uploaded_file = st.session_state.current_image
+        st.success("✅ Foto tersimpan!")
     
     st.divider()
-    if st.button("Hapus Ingatan"):
+    
+    # TOMBOL HAPUS INGATAN
+    st.markdown("### ⚙️ Pengaturan")
+    if st.button("🗑️ Hapus Ingatan", use_container_width=True, help="Hapus semua riwayat chat"):
         conn = sqlite3.connect('djamantara_memory.db')
         conn.cursor().execute("DELETE FROM chat_history")
         conn.commit()
@@ -186,8 +208,15 @@ with st.sidebar:
         st.session_state.messages = []
         if "current_image" in st.session_state:
             del st.session_state.current_image
+        st.success("✅ Ingatan berhasil dihapus!")
         st.rerun()
+    
+    st.markdown("---")
+    st.markdown("*Djamantara AI - Kocheng Pinter*")
 
+# ==========================================
+# --- CHAT HISTORY ---
+# ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
 
@@ -199,7 +228,6 @@ for message in st.session_state.messages:
 # --- 4. LOGIKA PERCAKAPAN ---
 # ==========================================
 if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
-    # Cek apakah client API sudah siap
     if not client:
         st.error("⚠️ Koneksi ke Groq belum siap. Cek API Key di secrets.")
         st.stop()
@@ -213,7 +241,12 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                image_to_use = uploaded_file if uploaded_file is not None else st.session_state.get("current_image")
+                # Handle image upload dengan aman
+                image_to_use = None
+                if 'uploaded_file' in locals() and uploaded_file is not None:
+                    image_to_use = uploaded_file
+                elif "current_image" in st.session_state:
+                    image_to_use = st.session_state.current_image
                 
                 if image_to_use:
                     base64_image = encode_image(image_to_use)
@@ -260,7 +293,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
             except Exception as e:
                 st.error(f"Duh Bos, sistem macet: {str(e)}")
 
-# Cleanup file suara
+# Cleanup
 if os.path.exists("temp_voice.mp3"):
     try: 
         time.sleep(3)
