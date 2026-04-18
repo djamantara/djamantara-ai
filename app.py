@@ -41,14 +41,22 @@ st.markdown("""
 
 st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
 if gif_b64:
+<<<<<<< HEAD
     st.markdown(f'<img src="image/gif;base64,{gif_b64}" class="cat-gif" alt="kucing">', unsafe_allow_html=True)
+=======
+    st.markdown(f'<img src="data:image/gif;base64,{gif_b64}" class="cat-gif" alt="kucing">', unsafe_allow_html=True)
+>>>>>>> 83616c9ed95a09866f457852f29cab35aceff855
 st.markdown('<h1 class="app-title">🤖 Djamantara AI</h1>', unsafe_allow_html=True)
 st.markdown('<p class="app-subtitle">Nape bei se ekatanya bray,odhiek neko santai.</p>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
 async def _tts_generate(text):
+<<<<<<< HEAD
     clean = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
     comm = edge_tts.Communicate(clean, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
+=======
+    clean = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")    comm = edge_tts.Communicate(clean, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
+>>>>>>> 83616c9ed95a09866f457852f29cab35aceff855
     await comm.save("temp_voice.mp3")
 
 def play_voice(text):
@@ -60,7 +68,11 @@ def play_voice(text):
         if os.path.exists("temp_voice.mp3"):
             with open("temp_voice.mp3", "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
+<<<<<<< HEAD
             st.markdown(f'<audio autoplay playsinline style="display:none"><source src="audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
+=======
+            st.markdown(f'<audio autoplay playsinline style="display:none"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
+>>>>>>> 83616c9ed95a09866f457852f29cab35aceff855
     except Exception as e:
         st.warning(f"⚠️ Gagal generate suara: {e}")
 
@@ -97,8 +109,12 @@ if prompt := st.chat_input("Ketik pesan..."):
                             model="mixtral-8x7b-32768",
                             temperature=0.7,
                             max_tokens=250
+<<<<<<< HEAD
                         )
                     else:
+=======
+                        )                    else:
+>>>>>>> 83616c9ed95a09866f457852f29cab35aceff855
                         raise e
 
                 full_response = response.choices[0].message.content
