@@ -149,7 +149,7 @@ if prompt := st.chat_input("Ketik pesan..."):
         with st.spinner("Djamantara lagi ngomong..."):
             try:
                 context = st.session_state.messages[-5:]
-                system_prompt = {"role": "system", "content": "Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia ramah agak nyeleneh. Panggil user 'djancuk'. Jangan terlalu panjang."}
+                system_prompt = {"role": "system", "content": "Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia ramah agak nyeleneh, Jangan terlalu panjang."}
 
                 response = client.chat.completions.create(
                     messages=[system_prompt] + context,
