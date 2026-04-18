@@ -36,23 +36,18 @@ gif_b64 = get_gif_base64("kucing.gif")
 
 st.markdown("""
 <style>
-    /* HILANGKAN SEMUA MENU STREAMLIT */
     header, #MainMenu, footer, .stAppDeployButton { 
         display: none !important; 
         visibility: hidden !important; 
     }
-    
-    /* CENTER CONTAINER PASTI */
     .main .block-container { 
         padding-top: 1rem !important; 
         padding-bottom: 2rem !important;
         max-width: 90% !important;
-        margin: 0 auto !important;    }
-    
-    /* HEADER WRAPPER - CENTER TOTAL */
+        margin: 0 auto !important;
+    }
     .header-wrapper {
-        text-align: center !important;
-        display: flex !important;
+        text-align: center !important;        display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
@@ -60,16 +55,12 @@ st.markdown("""
         margin: 0 auto !important;
         padding: 0 !important;
     }
-    
-    /* GIF - CENTER & RAPAT */
     .cat-gif { 
         width: 110px !important; 
         height: auto !important; 
         display: block !important;
         margin: 0 auto 2px auto !important;
     }
-    
-    /* JUDUL - CENTER PASTI */
     .app-title { 
         font-size: 1.6rem !important; 
         font-weight: bold !important; 
@@ -80,8 +71,6 @@ st.markdown("""
         display: block !important;
         width: 100% !important;
     }
-    
-    /* SUBTITLE */
     .app-subtitle { 
         color: gray !important; 
         font-style: italic !important; 
@@ -93,10 +82,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Render Header dengan Center Paksa
 st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
 
-if gif_b64:    st.markdown(f'<img src="data:image/gif;base64,{gif_b64}" class="cat-gif" alt="kucing">', unsafe_allow_html=True)
+if gif_b64:
+    st.markdown(f'<img src="data:image/gif;base64,{gif_b64}" class="cat-gif" alt="kucing">', unsafe_allow_html=True)
 
 st.markdown('<h1 class="app-title">🤖 Djamantara AI</h1>', unsafe_allow_html=True)
 st.markdown('<p class="app-subtitle">Nape bei se ekatanya bray,odhiek neko santai.</p>', unsafe_allow_html=True)
@@ -107,8 +96,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 # 2. FUNGSI AUTO-PLAY VOICE (TTS)
 # ==========================================
 def play_voice(text):
-    try:
-        clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
+    try:        clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
 
         async def _generate():
             comm = edge_tts.Communicate(clean_text, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
@@ -132,7 +120,7 @@ def play_voice(text):
         st.warning(f"⚠️ Gagal generate suara: {e}")
 
 # ==========================================
-# 3. LOGIKA CHAT UTAMA
+# 3. LOGIKA CHAT UTAMA (ANTI RATE LIMIT)
 # ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -145,25 +133,41 @@ if prompt := st.chat_input("Ketik pesan..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
+    
     with st.chat_message("assistant"):
         with st.spinner("Djamantara lagi ngomong..."):
             try:
-                context = st.session_state.messages[-5:]
+                context = st.session_state.messages[-3:]  # Hemat token: cuma 3 pesan terakhir
                 system_prompt = {"role": "system", "content": "Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia ramah agak nyeleneh, Jangan terlalu panjang."}
 
-                response = client.chat.completions.create(
-                    messages=[system_prompt] + context,
-                    model="llama-3.3-70b-versatile",
-                    temperature=0.7
-                )
+                # 🔄 Coba model utama dulu
+                try:
+                    response = client.chat.completions.create(
+                        messages=[system_prompt] + context,
+                        model="llama-3.3-70b-versatile",
+                        temperature=0.7,                        max_tokens=300  # ✅ Hemat token!
+                    )
+                except Exception as e:
+                    # ⚠️ Kalau rate limit, fallback ke model ringan
+                    if "rate_limit" in str(e).lower() or "429" in str(e):
+                        st.warning("⚠️ Kuota model utama habis, pakai mode hemat...")
+                        response = client.chat.completions.create(
+                            messages=[system_prompt] + context,
+                            model="mixtral-8x7b-32768",  # ✅ Model cadangan (lebih hemat)
+                            temperature=0.7,
+                            max_tokens=250
+                        )
+                    else:
+                        raise e
 
                 full_response = response.choices[0].message.content
                 st.markdown(full_response)
-
-                # 🔊 Panggil suara otomatis
                 play_voice(full_response)
-
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
 
             except Exception as e:
-                st.error(f"Duh Bos, sistem macet: {e}")
+                error_msg = str(e)
+                if "rate_limit" in error_msg.lower() or "429" in error_msg:
+                    st.warning("⏳ Kuota harian habis Bos! Coba lagi nanti ya.")
+                else:
+                    st.error(f"Duh Bos, sistem macet: {e}")
