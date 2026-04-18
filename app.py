@@ -9,150 +9,111 @@ import threading
 from groq import Groq
 
 # --- KONFIGURASI API ---
-# 💡 Gunakan st.secrets atau .env di production
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 
-# --- SETTING LAYAR MOBILE RESPONSIF ---
 st.set_page_config(
-    page_title="Djamantara AI", 
-    page_icon="🐱", 
+    page_title="Djamantara AI",
+    page_icon="🐱",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS INJECTION ---
+# --- CSS MINIMAL & RESPONSIF ---
 st.markdown("""
-    <style>
-    .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 5rem;
-        padding-left: 1rem;
-        padding-right: 1rem;
-    }
-    .cat-container img {
-        max-width: 100px;
-        height: auto;
-    }
-    .moto-text {
-        font-size: 0.9rem !important;
-        line-height: 1.4;
-    }
-    .stChatInputContainer {
-        padding-bottom: 20px;
-    }
-    footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
-    @media only screen and (max-width: 600px) {
-        h1 { font-size: 1.8rem !important; }
-        .moto-text { font-size: 0.8rem !important; }
-    }
-    </style>
-    """, unsafe_allow_html=True)
-# Setup Klien API
+<style>
+    .main .block-container { padding-top: 2rem; padding-bottom: 4rem; }
+    .moto-text { font-size: 0.9rem; color: gray; font-style: italic; line-height: 1.4; }
+    footer, #MainMenu { visibility: hidden; }
+    .stChatInputContainer { padding-bottom: 15px; }
+    @media (max-width: 600px) { h1 { font-size: 1.6rem !important; } }
+</style>
+""", unsafe_allow_html=True)
+
+# --- INISIALISASI GROQ ---
 try:
     client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
-    st.error(f"⚠️ Waduh Bos, Groq-nya bermasalah: {e}")
+    st.error(f"⚠️ Waduh Bos, Groq bermasalah: {e}")
     st.stop()
 
 # ==========================================
-# --- 1. SISTEM INGATAN (DATABASE) ---
+# 1. DATABASE (INGATAN)
 # ==========================================
 def init_db():
-    conn = sqlite3.connect('djamantara_memory.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS chat_history 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    conn = sqlite3.connect("djamantara_memory.db")
+    conn.execute('''CREATE TABLE IF NOT EXISTS chat_history 
+                    (id INTEGER PRIMARY KEY, role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     conn.commit()
     conn.close()
 
 def save_chat(role, content):
-    conn = sqlite3.connect('djamantara_memory.db')
-    try:
-        c = conn.cursor()
-        c.execute("INSERT INTO chat_history (role, content) VALUES (?, ?)", (role, str(content)))
-        conn.commit()
-    finally:
-        conn.close()
+    conn = sqlite3.connect("djamantara_memory.db")    conn.execute("INSERT INTO chat_history (role, content) VALUES (?, ?)", (role, str(content)))
+    conn.commit()
+    conn.close()
 
 def load_chat(limit=50):
-    conn = sqlite3.connect('djamantara_memory.db')
-    try:
-        c = conn.cursor()
-        c.execute("SELECT role, content FROM chat_history ORDER BY timestamp ASC LIMIT ?", (limit,))
-        history = c.fetchall()
-        return [{"role": r, "content": c} for r, c in history]
-    finally:
-        conn.close()
+    conn = sqlite3.connect("djamantara_memory.db")
+    cur = conn.cursor()
+    cur.execute("SELECT role, content FROM chat_history ORDER BY timestamp ASC LIMIT ?", (limit,))
+    rows = cur.fetchall()
+    conn.close()
+    return [{"role": r, "content": c} for r, c in rows]
 
 init_db()
 
 # ==========================================
-# --- 2. FUNGSI PENDUKUNG (MEDIA) ---
+# 2. MEDIA & TTS (RINGAN)
 # ==========================================
-def get_local_gif(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8")
+def get_local_gif(path):
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
     return None
 
-def encode_image(file_obj):    file_obj.seek(0)
-    mime_type = file_obj.type or "image/jpeg"
-    return base64.b64encode(file_obj.read()).decode('utf-8'), mime_type
+def encode_image(file_obj):
+    file_obj.seek(0)
+    mime = file_obj.type or "image/jpeg"
+    b64 = base64.b64encode(file_obj.read()).decode()
+    return b64, mime
 
-def run_async_safe(coro_func, *args):
-    def _run():
-        new_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(new_loop)
-        try:
-            new_loop.run_until_complete(coro_func(*args))
-        finally:
-            new_loop.close()
-    threading.Thread(target=_run, daemon=True).start()
+def run_tts_background(text):
+    async def _gen():
+        clean = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
+        comm = edge_tts.Communicate(clean, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
+        await comm.save("temp_voice.mp3")
+    threading.Thread(target=lambda: asyncio.run(_gen()), daemon=True).start()
 
-async def generate_voice(text):
-    clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
-    communicate = edge_tts.Communicate(clean_text, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
-    await communicate.save("temp_voice.mp3")
-
-def autoplay_audio(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
+def play_audio(path):
+    if os.path.exists(path):
+        with open(path, "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
-            st.markdown(f'<audio autoplay playsinline controls style="display:none;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
+        st.markdown(f'<audio autoplay playsinline style="display:none"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
 
 # ==========================================
-# --- 3. TAMPILAN UTAMA ---
+# 3. TAMPILAN UI
 # ==========================================
-gif_data = get_local_gif("kucing.gif")
-
-if gif_data:
-    st.markdown(
-        f"""
-        <div style="text-align: center; margin-top: -30px;" class="cat-container">
-            <img src="data:image/gif;base64,{gif_data}" style="z-index: 1;">
-            <h1 style="margin: 0; padding: 0;">🤖 Djamantara AI</h1>
-            <p class="moto-text" style="color: gray; font-style: italic;">
-                "Entar kon obâ'. É tengnga jhâlân pas mu-nemmu. Oréng od i' jhâ' alako jhubâ'. Lebbi bhagus nyaré élmo."
-            </p>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
+gif_b64 = get_local_gif("kucing.gif")
+if gif_b64:
+    st.markdown(f"""
+    <div style="text-align:center; margin-top:-20px">
+        <img src="data:image/gif;base64,{gif_b64}" style="max-width:100px; height:auto">        <h1 style="margin:5px 0">🤖 Djamantara AI</h1>
+        <p class="moto-text">"Entar kon obâ'. É tengnga jhâlân pas mu-nemmu."</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 with st.sidebar:
     st.title("👁️ Mata Kocheng")
-    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"])
-    
-    if uploaded_file:
-        st.session_state.current_image = uploaded_file        st.image(uploaded_file, caption="Foto Siap!", use_container_width=True)
+    uploaded = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"])
+    if uploaded:
+        st.session_state.current_image = uploaded
+        st.image(uploaded, caption="Foto Siap!", use_container_width=True)
     elif "current_image" in st.session_state:
         st.image(st.session_state.current_image, caption="Foto Siap!", use_container_width=True)
-    
+
     st.divider()
     if st.button("🗑️ Hapus Ingatan"):
-        conn = sqlite3.connect('djamantara_memory.db')
-        conn.cursor().execute("DELETE FROM chat_history")
+        conn = sqlite3.connect("djamantara_memory.db")
+        conn.execute("DELETE FROM chat_history")
         conn.commit()
         conn.close()
         st.session_state.messages = []
@@ -162,68 +123,60 @@ with st.sidebar:
 if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
 # ==========================================
-# --- 4. LOGIKA PERCAKAPAN ---
+# 4. LOGIKA CHAT
 # ==========================================
 if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     save_chat("user", prompt)
-    
+
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
         with st.spinner("Si Kocheng lagi ngintip..."):
             try:
-                image_obj = st.session_state.get("current_image")
+                img = st.session_state.get("current_image")
                 
-                if image_obj:
-                    base64_image, mime_type = encode_image(image_obj)
-                    response = client.chat.completions.create(
-                        messages=[
-                            {
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
-                                    {"type": "image_url", "image_url": {"url": f"{mime_type};base64,{base64_image}"}},
-                                ],
-                            }
-                        ],
-                        model="llama-3.2-90b-vision-preview",
-                        temperature=0.7                    )
-                    full_response = response.choices[0].message.content
-                else:
-                    context = st.session_state.messages[-5:]
-                    system_msg = {"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Gunakan bahasa santai Indonesia-Madura. Jangan terlalu panjang."}
-                    
-                    response = client.chat.completions.create(
-                        messages=[system_msg] + context,
-                        model="llama-3.3-70b-versatile",
-                        temperature=0.7
+                if img:
+                    b64_img, mime = encode_image(img)
+                    res = client.chat.completions.create(
+                        messages=[{"role": "user", "content": [                            {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, Indonesia-Madura. Panggil 'Bos'. Analisa: {prompt}"},
+                            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64_img}"}}
+                        ]}],
+                        model="llama-3.2-90b-vision-preview"
                     )
-                    full_response = response.choices[0].message.content
+                else:
+                    ctx = st.session_state.messages[-5:]
+                    sys_msg = {"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Bahasa santai Indonesia-Madura."}
+                    res = client.chat.completions.create(
+                        messages=[sys_msg] + ctx,
+                        model="llama-3.3-70b-versatile"
+                    )
                 
-                # Efek mengetik
-                placeholder = st.empty()
-                displayed_text = ""
-                for char in full_response:
-                    displayed_text += char
-                    placeholder.markdown(displayed_text + "▌")
-                    time.sleep(0.005)
-                placeholder.markdown(full_response)
+                reply = res.choices[0].message.content
 
-                # Generate & putar suara di background
-                if full_response.strip():
-                    run_async_safe(generate_voice, full_response)
-                    time.sleep(0.8)
-                    autoplay_audio("temp_voice.mp3")
-                    
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
-                save_chat("assistant", full_response)
-                
+                # Efek mengetik ringan
+                ph = st.empty()
+                txt = ""
+                for c in reply:
+                    txt += c
+                    ph.markdown(txt + "▌")
+                    time.sleep(0.01)
+                ph.markdown(reply)
+
+                # TTS Background
+                if reply.strip():
+                    run_tts_background(reply)
+                    time.sleep(1.2)
+                    play_audio("temp_voice.mp3")
+
+                st.session_state.messages.append({"role": "assistant", "content": reply})
+                save_chat("assistant", reply)
+
             except Exception as e:
-                st.error(f"Duh Bos, sistem macet: {str(e)}")
+                st.error(f"Duh Bos, sistem macet: {e}")
