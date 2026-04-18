@@ -9,9 +9,8 @@ import threading
 from groq import Groq
 
 # --- KONFIGURASI API ---
-# 💡 REKOMENDASI: Gunakan st.secrets["GROQ_API_KEY"] atau Environment Variable
-# Jangan hardcode API key di production!
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", st.secrets.get("GROQ_API_KEY", "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"))
+# 💡 Gunakan st.secrets atau .env di production
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 
 # --- SETTING LAYAR MOBILE RESPONSIF ---
 st.set_page_config(
@@ -47,8 +46,8 @@ st.markdown("""
         h1 { font-size: 1.8rem !important; }
         .moto-text { font-size: 0.8rem !important; }
     }
-    </style>    """, unsafe_allow_html=True)
-
+    </style>
+    """, unsafe_allow_html=True)
 # Setup Klien API
 try:
     client = Groq(api_key=GROQ_API_KEY)
@@ -96,14 +95,12 @@ def get_local_gif(file_path):
         with open(file_path, "rb") as f:
             return base64.b64encode(f.read()).decode("utf-8")
     return None
-def encode_image(file_obj):
-    file_obj.seek(0)
-    # Gunakan MIME type asli dari file uploader (jpg/png)
+
+def encode_image(file_obj):    file_obj.seek(0)
     mime_type = file_obj.type or "image/jpeg"
     return base64.b64encode(file_obj.read()).decode('utf-8'), mime_type
 
 def run_async_safe(coro_func, *args):
-    """Menjalankan fungsi async di background thread agar tidak memblokir UI Streamlit"""
     def _run():
         new_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(new_loop)
@@ -122,7 +119,6 @@ def autoplay_audio(file_path):
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
-            # playsinline & controls ditambahkan agar kompatibel dengan browser mobile modern
             st.markdown(f'<audio autoplay playsinline controls style="display:none;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
 
 # ==========================================
@@ -145,11 +141,11 @@ if gif_data:
     )
 
 with st.sidebar:
-    st.title("👁️ Mata Kocheng")    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"])
+    st.title("👁️ Mata Kocheng")
+    uploaded_file = st.file_uploader("Kirim foto...", type=["jpg", "jpeg", "png"])
     
     if uploaded_file:
-        st.session_state.current_image = uploaded_file
-        st.image(uploaded_file, caption="Foto Siap!", use_container_width=True)
+        st.session_state.current_image = uploaded_file        st.image(uploaded_file, caption="Foto Siap!", use_container_width=True)
     elif "current_image" in st.session_state:
         st.image(st.session_state.current_image, caption="Foto Siap!", use_container_width=True)
     
@@ -193,12 +189,12 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                                 "role": "user",
                                 "content": [
                                     {"type": "text", "text": f"Nama kamu Djamantara. Jawab santai, kocak, bahasa Indonesia campur Madura sedikit. Panggil 'Bos'. Analisa ini: {prompt}"},
-                                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
-                                ],                            }
+                                    {"type": "image_url", "image_url": {"url": f"{mime_type};base64,{base64_image}"}},
+                                ],
+                            }
                         ],
-                        model="llama-3.2-90b-vision-preview", # Model vision Groq yang stabil
-                        temperature=0.7
-                    )
+                        model="llama-3.2-90b-vision-preview",
+                        temperature=0.7                    )
                     full_response = response.choices[0].message.content
                 else:
                     context = st.session_state.messages[-5:]
@@ -223,7 +219,6 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                 # Generate & putar suara di background
                 if full_response.strip():
                     run_async_safe(generate_voice, full_response)
-                    # Beri jeda singkat agar file audio sempat terbuat sebelum diputar
                     time.sleep(0.8)
                     autoplay_audio("temp_voice.mp3")
                     
