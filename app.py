@@ -10,7 +10,12 @@ import io
 from groq import Groq
 
 # --- KONFIGURASI API ---
-GROQ_API_KEY = "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"
+# FIX 401: Baca dari environment variable, hindari hardcode & spasi tersembunyi
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
+
+if not GROQ_API_KEY:
+    st.error("⚠️ API Key Groq kosong/tidak terbaca. Buat file `.env` dengan isi: `GROQ_API_KEY=gsk_xxxx` lalu restart app.")
+    st.stop()
 
 # --- SETTING LAYAR MOBILE RESPONSIF ---
 st.set_page_config(
@@ -42,7 +47,6 @@ st.markdown("""
         font-size: 0.9rem !important;
         line-height: 1.4;
     }
-
     /* Memperbaiki tampilan Chat Input di Mobile */
     .stChatInputContainer {
         padding-bottom: 20px;
@@ -92,8 +96,7 @@ def save_chat(role, content):
 
 def load_chat():
     try:
-        conn = sqlite3.connect('djamantara_memory.db')
-        c = conn.cursor()
+        conn = sqlite3.connect('djamantara_memory.db')        c = conn.cursor()
         c.execute("SELECT role, content FROM chat_history ORDER BY timestamp ASC")
         history = c.fetchall()
         conn.close()
@@ -142,8 +145,7 @@ def run_async_safe(coro_func, *args):
         loop.close()
         return result
 
-async def generate_voice(text):
-    clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
+async def generate_voice(text):    clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("-", " ")
     communicate = edge_tts.Communicate(clean_text, "id-ID-ArdiNeural", pitch="-5Hz", rate="+10%")
     await communicate.save("temp_voice.mp3")
 
@@ -192,8 +194,7 @@ with st.sidebar:
         conn.close()
         st.session_state.messages = []
         if "current_image" in st.session_state:
-            del st.session_state.current_image
-        st.rerun()
+            del st.session_state.current_image        st.rerun()
 
 if "messages" not in st.session_state:
     st.session_state.messages = load_chat()
@@ -242,8 +243,7 @@ if prompt := st.chat_input("Ngobrol moso Djamantara, Bos..."):
                     chat_completion = client.chat.completions.create(
                         messages=[
                             {"role": "system", "content": "Nama kamu Djamantara, asisten kucing hitam keren & kocak. Panggil user 'Bos'. Gunakan bahasa santai Indonesia-Madura."},
-                            *context
-                        ],
+                            *context                        ],
                         model="llama-3.3-70b-versatile",
                     )
                     full_response = chat_completion.choices[0].message.content
