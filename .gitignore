@@ -1,33 +1,4 @@
-# Streamlit secrets (API KEY)
 .streamlit/secrets.toml
-
-# Database files
 *.db
-djamantara_memory.db
-
-# Python cache
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-
-# Temporary files
-temp_voice.mp3
-*.log
-
-# Environment variables
 .env
-.venv
-env/
-venv/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
